@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Filter, X } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Filter, X, TrendingUp, TrendingDown, Flame } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { getBets, Bet } from '@/lib/storage';
@@ -14,13 +14,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 
 const ITEMS_PER_PAGE = 10;
 
@@ -71,6 +64,155 @@ function formatDateRange(start: Date, end: Date): string {
   return `${startStr} - ${endStr}`;
 }
 
+// Calculate streak information with skip logic (1-3 skips don't break streak, 4+ skips break)
+interface StreakStats {
+  highestWinStreak: number;
+  highestLoseStreak: number;
+  winStreak3x: number;  // Number of times achieved 3 consecutive wins
+  winStreak4x: number;  // Number of times achieved 4 consecutive wins
+  winStreak5x: number;  // Number of times achieved 5 consecutive wins
+  loseStreak3x: number; // Number of times achieved 3 consecutive losses
+  loseStreak4x: number; // Number of times achieved 4 consecutive losses
+  loseStreak5x: number; // Number of times achieved 5 consecutive losses
+  currentWinStreak: number;
+  currentLoseStreak: number;
+}
+
+function calculateStreakStats(bets: Bet[]): StreakStats {
+  if (bets.length === 0) {
+    return {
+      highestWinStreak: 0,
+      highestLoseStreak: 0,
+      winStreak3x: 0,
+      winStreak4x: 0,
+      winStreak5x: 0,
+      loseStreak3x: 0,
+      loseStreak4x: 0,
+      loseStreak5x: 0,
+      currentWinStreak: 0,
+      currentLoseStreak: 0,
+    };
+  }
+
+  // Sort bets by createdAt (oldest first for streak calculation)
+  const sortedBets = [...bets].sort((a, b) => 
+    new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  );
+
+  let currentStreak = 0;
+  let currentStreakType: 'win' | 'lose' | null = null;
+  let skipCount = 0;
+  
+  let highestWinStreak = 0;
+  let highestLoseStreak = 0;
+  let winStreak3x = 0;
+  let winStreak4x = 0;
+  let winStreak5x = 0;
+  let loseStreak3x = 0;
+  let loseStreak4x = 0;
+  let loseStreak5x = 0;
+  let currentWinStreak = 0;
+  let currentLoseStreak = 0;
+
+  for (let i = 0; i < sortedBets.length; i++) {
+    const bet = sortedBets[i];
+    const isWin = bet.status === 'win';
+    const isLoss = bet.status === 'lost';
+    const isWait = bet.status === 'wait';
+
+    // If it's a waiting bet, skip it (not yet resolved)
+    if (isWait) {
+      continue;
+    }
+
+    if (isWin || isLoss) {
+      const currentType = isWin ? 'win' : 'lose';
+      
+      // Check if we have a streak and how many skips occurred
+      if (currentStreakType === currentType) {
+        // Same streak continues
+        currentStreak++;
+        skipCount = 0;
+      } else if (currentStreakType === null) {
+        // Starting a new streak
+        currentStreak = 1;
+        currentStreakType = currentType;
+        skipCount = 0;
+      } else {
+        // Different type - check if we should break the streak or not
+        // If skipCount <= 3, streak continues (just change type)
+        if (skipCount <= 3) {
+          // Streak continues but type changes - record the previous streak first
+          if (currentStreakType === 'win') {
+            if (currentStreak >= 3) winStreak3x++;
+            if (currentStreak >= 4) winStreak4x++;
+            if (currentStreak >= 5) winStreak5x++;
+            highestWinStreak = Math.max(highestWinStreak, currentStreak);
+          } else {
+            if (currentStreak >= 3) loseStreak3x++;
+            if (currentStreak >= 4) loseStreak4x++;
+            if (currentStreak >= 5) loseStreak5x++;
+            highestLoseStreak = Math.max(highestLoseStreak, currentStreak);
+          }
+          // Start new streak
+          currentStreak = 1;
+          currentStreakType = currentType;
+          skipCount = 0;
+        } else {
+          // Skip count > 3, break the streak
+          // Record the previous streak
+          if (currentStreakType === 'win') {
+            if (currentStreak >= 3) winStreak3x++;
+            if (currentStreak >= 4) winStreak4x++;
+            if (currentStreak >= 5) winStreak5x++;
+            highestWinStreak = Math.max(highestWinStreak, currentStreak);
+          } else if (currentStreakType === 'lose') {
+            if (currentStreak >= 3) loseStreak3x++;
+            if (currentStreak >= 4) loseStreak4x++;
+            if (currentStreak >= 5) loseStreak5x++;
+            highestLoseStreak = Math.max(highestLoseStreak, currentStreak);
+          }
+          // Start new streak with current bet
+          currentStreak = 1;
+          currentStreakType = currentType;
+          skipCount = 0;
+        }
+      }
+    } else {
+      // This bet is not win/loss (shouldn't happen), count as skip
+      skipCount++;
+    }
+  }
+
+  // Record the last streak
+  if (currentStreakType === 'win') {
+    if (currentStreak >= 3) winStreak3x++;
+    if (currentStreak >= 4) winStreak4x++;
+    if (currentStreak >= 5) winStreak5x++;
+    highestWinStreak = Math.max(highestWinStreak, currentStreak);
+    currentWinStreak = currentStreak;
+  } else if (currentStreakType === 'lose') {
+    if (currentStreak >= 3) loseStreak3x++;
+    if (currentStreak >= 4) loseStreak4x++;
+    if (currentStreak >= 5) loseStreak5x++;
+    highestLoseStreak = Math.max(highestLoseStreak, currentStreak);
+    currentLoseStreak = currentStreak;
+  }
+
+  return {
+    highestWinStreak,
+    highestLoseStreak,
+    winStreak3x,
+    winStreak4x,
+    winStreak5x,
+    loseStreak3x,
+    loseStreak4x,
+    loseStreak5x,
+    currentWinStreak,
+    currentLoseStreak,
+  };
+}
+
 export default function HistoryPage() {
   const router = useRouter();
   const [allBets, setAllBets] = useState<Bet[]>([]);
@@ -118,7 +260,7 @@ export default function HistoryPage() {
       if (bet.status === 'win') {
         const multiplier = getBetMultiplier(bet.val);
         const winAmount = Math.floor(bet.amt * multiplier);
-        const profit = winAmount - bet.amt; // Net profit only (excluding stake)
+        const profit = winAmount - bet.amt;
         totalWinAmount += profit;
         winMatches++;
       } else if (bet.status === 'lost') {
@@ -141,6 +283,9 @@ export default function HistoryPage() {
       lostRate,
     };
   }, [filteredBets]);
+
+  // Calculate streak statistics
+  const streakStats = useMemo(() => calculateStreakStats(filteredBets), [filteredBets]);
 
   // Group filtered bets by date
   const groupedBets = useMemo(() => {
@@ -220,36 +365,36 @@ export default function HistoryPage() {
       </div>
 
       {/* Content */}
-      <div className="w-full max-w-md mx-auto px-2 pt-6 pb-20 space-y-6">
+      <div className="w-full max-w-md mx-auto px-2 pt-6 pb-20 space-y-4">
         
         {/* Filter Section */}
         <Card
-          className="p-4 border"
+          className="p-3 border"
           style={{
             background: '#1e2329',
             borderColor: '#222',
           }}
         >
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <Filter size={16} style={{ color: '#ffc107' }} />
-              <span className="text-sm font-semibold">Filter by date</span>
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-1.5">
+              <Filter size={14} style={{ color: '#ffc107' }} />
+              <span className="text-xs font-semibold">Filter by date</span>
             </div>
             <button
               onClick={resetFilter}
-              className="text-xs px-2 py-1 rounded"
+              className="text-xs px-2 py-0.5 rounded"
               style={{ color: '#ffc107', background: 'rgba(255, 193, 7, 0.1)' }}
             >
               Reset
             </button>
           </div>
 
-          <div className="flex flex-wrap gap-2 mb-3">
+          <div className="flex flex-wrap gap-1.5 mb-2">
             {(['today', 'yesterday', 'thisWeek', 'thisMonth'] as DateFilter[]).map((filter) => (
               <button
                 key={filter}
                 onClick={() => handleFilterChange(filter)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
                   dateFilter === filter
                     ? 'text-black'
                     : 'text-gray-400'
@@ -269,7 +414,7 @@ export default function HistoryPage() {
             <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
               <PopoverTrigger asChild>
                 <button
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1 ${
+                  className={`px-2.5 py-1 rounded-lg text-xs font-medium flex items-center gap-1 ${
                     dateFilter === 'custom'
                       ? 'text-black'
                       : 'text-gray-400'
@@ -283,12 +428,12 @@ export default function HistoryPage() {
                   }}
                 >
                   <CalendarIcon size={12} />
-                  {dateFilter === 'custom' ? rangeDisplay : 'သတ်မှတ်ရက်'}
+                  {dateFilter === 'custom' ? rangeDisplay.slice(0, 12) : 'သတ်မှတ်ရက်'}
                 </button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
-                <div className="p-4" style={{ background: '#1e2329', borderColor: '#333' }}>
-                  <div className="mb-3 text-sm text-white">Select Date Range</div>
+                <div className="p-3" style={{ background: '#1e2329', borderColor: '#333' }}>
+                  <div className="mb-2 text-xs text-white">Select Date Range</div>
                   <Calendar
                     mode="range"
                     selected={{
@@ -300,20 +445,20 @@ export default function HistoryPage() {
                       if (range?.to) setCustomEndDate(range.to);
                     }}
                     numberOfMonths={2}
-                    className="rounded-md"
+                    className="rounded-md scale-90 origin-top-left"
                   />
-                  <div className="flex gap-2 mt-4">
+                  <div className="flex gap-2 mt-3">
                     <Button
                       onClick={() => setCalendarOpen(false)}
-                      className="flex-1"
-                      style={{ background: '#333', color: '#fff' }}
+                      className="flex-1 py-1 text-xs"
+                      style={{ background: '#333', color: '#fff', height: '32px' }}
                     >
                       Cancel
                     </Button>
                     <Button
                       onClick={handleCustomDateSelect}
-                      className="flex-1"
-                      style={{ background: '#ffc107', color: '#000' }}
+                      className="flex-1 py-1 text-xs"
+                      style={{ background: '#ffc107', color: '#000', height: '32px' }}
                     >
                       Apply
                     </Button>
@@ -322,174 +467,106 @@ export default function HistoryPage() {
               </PopoverContent>
             </Popover>
           </div>
-
-          {/* Active filter display */}
-          {dateFilter === 'custom' && customStartDate && customEndDate && (
-            <div className="text-xs text-gray-400 mt-2 flex items-center gap-2">
-              <span>Selected: {rangeDisplay}</span>
-              <button
-                onClick={resetFilter}
-                className="p-1 hover:opacity-80"
-              >
-                <X size={12} style={{ color: '#ffc107' }} />
-              </button>
-            </div>
-          )}
         </Card>
 
-        {/* Statistics Cards */}
+        {/* Statistics Cards - Compact Grid */}
         {filteredBets.length > 0 ? (
           <>
-            {/* Main Stats Row */}
-            <div className="grid grid-cols-2 gap-3">
-              {/* Played Matches */}
-              <Card
-                className="p-4 border"
-                style={{
-                  background: 'linear-gradient(135deg, #1e2329, #111)',
-                  borderColor: '#ffc107',
-                  borderBottomWidth: '3px',
-                }}
-              >
-                <div className="text-xs text-gray-400 mb-1">ကစားခဲ့သောပွဲ</div>
-                <div className="text-2xl font-bold text-white">{stats.totalMatches}</div>
+            {/* Row 1: Basic Stats */}
+            <div className="grid grid-cols-2 gap-2">
+              <Card className="p-2 border" style={{ background: '#1e2329', borderColor: '#222' }}>
+                <div className="text-[10px] text-gray-400">ကစားပွဲ</div>
+                <div className="text-lg font-bold text-white">{stats.totalMatches}</div>
               </Card>
-
-              {/* Total Bet Amount */}
-              <Card
-                className="p-4 border"
-                style={{
-                  background: 'linear-gradient(135deg, #1e2329, #111)',
-                  borderColor: '#ffc107',
-                  borderBottomWidth: '3px',
-                }}
-              >
-                <div className="text-xs text-gray-400 mb-1">စုစုပေါင်းထိုးကြေး</div>
-                <div className="text-2xl font-bold text-white">{stats.totalBetAmount.toLocaleString()} MMK</div>
+              <Card className="p-2 border" style={{ background: '#1e2329', borderColor: '#222' }}>
+                <div className="text-[10px] text-gray-400">စုစုပေါင်းထိုးကြေး</div>
+                <div className="text-lg font-bold text-white">{stats.totalBetAmount.toLocaleString()}</div>
               </Card>
             </div>
 
-            {/* Win Stats Row */}
-            <div className="grid grid-cols-2 gap-3">
-              {/* Total Win Amount (Profit Only) */}
-              <Card
-                className="p-4 border"
-                style={{
-                  background: 'linear-gradient(135deg, #1a3a1a 0%, #0a1a0a 100%)',
-                  borderColor: '#00c853',
-                  borderBottomWidth: '3px',
-                }}
-              >
-                <div className="text-xs text-gray-400 mb-1">စုစုပေါင်းအမြတ်</div>
-                <div className="text-2xl font-bold" style={{ color: '#00c853' }}>
-                  +{stats.totalWinAmount.toLocaleString()} MMK
-                </div>
+            {/* Row 2: Win/Loss Stats */}
+            <div className="grid grid-cols-2 gap-2">
+              <Card className="p-2 border" style={{ background: '#1a3a1a', borderColor: '#00c853' }}>
+                <div className="text-[10px] text-gray-300">အမြတ်</div>
+                <div className="text-base font-bold" style={{ color: '#00c853' }}>+{stats.totalWinAmount.toLocaleString()}</div>
+                <div className="text-[10px] text-gray-400">{stats.winMatches} ပွဲ ({stats.winRate.toFixed(1)}%)</div>
               </Card>
-
-              {/* Win Matches */}
-              <Card
-                className="p-4 border"
-                style={{
-                  background: '#1e2329',
-                  borderColor: '#00c853',
-                  borderBottomWidth: '3px',
-                }}
-              >
-                <div className="text-xs text-gray-400 mb-1">အောင်လျှင်းပွဲ</div>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-2xl font-bold" style={{ color: '#00c853' }}>
-                    {stats.winMatches}
-                  </span>
-                  <span className="text-sm" style={{ color: '#00c853' }}>
-                    ({stats.winRate.toFixed(1)}%)
-                  </span>
-                </div>
-                <div className="text-xs text-gray-500 mt-1">
-                  / {stats.totalMatches} ပွဲ
-                </div>
+              <Card className="p-2 border" style={{ background: '#3a1a1a', borderColor: '#ff3d00' }}>
+                <div className="text-[10px] text-gray-300">ရှုံး</div>
+                <div className="text-base font-bold" style={{ color: '#ff3d00' }}>-{stats.totalLostAmount.toLocaleString()}</div>
+                <div className="text-[10px] text-gray-400">{stats.lostMatches} ပွဲ ({stats.lostRate.toFixed(1)}%)</div>
               </Card>
             </div>
 
-            {/* Loss Stats Row */}
-            <div className="grid grid-cols-2 gap-3">
-              {/* Total Lost Amount */}
-              <Card
-                className="p-4 border"
-                style={{
-                  background: 'linear-gradient(135deg, #3a1a1a 0%, #1a0a0a 100%)',
-                  borderColor: '#ff3d00',
-                  borderBottomWidth: '3px',
-                }}
-              >
-                <div className="text-xs text-gray-400 mb-1">စုစုပေါင်းရှုံးငွေ</div>
-                <div className="text-2xl font-bold" style={{ color: '#ff3d00' }}>
-                  -{stats.totalLostAmount.toLocaleString()} MMK
+            {/* Row 3: Streak Stats - Highest */}
+            <div className="grid grid-cols-2 gap-2">
+              <Card className="p-2 border" style={{ background: '#0f5a2e', borderColor: '#00c853' }}>
+                <div className="flex items-center gap-1">
+                  <TrendingUp size={12} style={{ color: '#00c853' }} />
+                  <span className="text-[10px] text-gray-300">အမြင့်ဆုံးအနိုင်စဉ်</span>
                 </div>
+                <div className="text-xl font-bold" style={{ color: '#00c853' }}>{streakStats.highestWinStreak}</div>
               </Card>
-
-              {/* Lost Matches */}
-              <Card
-                className="p-4 border"
-                style={{
-                  background: '#1e2329',
-                  borderColor: '#ff3d00',
-                  borderBottomWidth: '3px',
-                }}
-              >
-                <div className="text-xs text-gray-400 mb-1">ရှုံးသွားပွဲ</div>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-2xl font-bold" style={{ color: '#ff3d00' }}>
-                    {stats.lostMatches}
-                  </span>
-                  <span className="text-sm" style={{ color: '#ff3d00' }}>
-                    ({stats.lostRate.toFixed(1)}%)
-                  </span>
+              <Card className="p-2 border" style={{ background: '#8b2c2c', borderColor: '#ff3d00' }}>
+                <div className="flex items-center gap-1">
+                  <TrendingDown size={12} style={{ color: '#ff3d00' }} />
+                  <span className="text-[10px] text-gray-300">အမြင့်ဆုံးအရှုံးစဉ်</span>
                 </div>
-                <div className="text-xs text-gray-500 mt-1">
-                  / {stats.totalMatches} ပွဲ
-                </div>
+                <div className="text-xl font-bold" style={{ color: '#ff3d00' }}>{streakStats.highestLoseStreak}</div>
               </Card>
             </div>
 
-            {/* Net Result Card */}
-            <Card
-              className="p-4 border"
-              style={{
-                background: '#0f1215',
-                borderColor: '#333',
-              }}
-            >
-              <div className="flex justify-between items-center">
-                <div className="text-sm text-gray-400">အသားတင်ရလဒ်</div>
-                <div className={`text-xl font-bold ${stats.totalWinAmount - stats.totalLostAmount >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                  {(stats.totalWinAmount - stats.totalLostAmount).toLocaleString()} MMK
+            {/* Row 4: Current Streak */}
+            <div className="grid grid-cols-2 gap-2">
+              <Card className="p-2 border" style={{ background: '#1e2329', borderColor: '#00c853' }}>
+                <div className="flex items-center gap-1">
+                  <Flame size={12} style={{ color: '#ffc107' }} />
+                  <span className="text-[10px] text-gray-300">လက်ရှိအနိုင်စဉ်</span>
                 </div>
-              </div>
-              <div className="text-xs text-gray-500 mt-2">
-                (အနိုင်ရငွေ - ရှုံးငွေ)
+                <div className="text-lg font-bold" style={{ color: '#00c853' }}>{streakStats.currentWinStreak}</div>
+              </Card>
+              <Card className="p-2 border" style={{ background: '#1e2329', borderColor: '#ff3d00' }}>
+                <div className="flex items-center gap-1">
+                  <Flame size={12} style={{ color: '#ffc107' }} />
+                  <span className="text-[10px] text-gray-300">လက်ရှိအရှုံးစဉ်</span>
+                </div>
+                <div className="text-lg font-bold" style={{ color: '#ff3d00' }}>{streakStats.currentLoseStreak}</div>
+              </Card>
+            </div>
+
+            {/* Row 5: Multiplier Streak Stats */}
+            <Card className="p-2 border" style={{ background: '#0f1215', borderColor: '#333' }}>
+              <div className="text-[10px] text-gray-400 mb-1.5 text-center">စဉ်ဆက်အနိုင်/အရှုံးများ</div>
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div>
+                  <div className="text-[10px] text-gray-500">3x</div>
+                  <div className="flex justify-center gap-2">
+                    <span className="text-xs font-bold" style={{ color: '#00c853' }}>{streakStats.winStreak3x}</span>
+                    <span className="text-xs text-gray-500">/</span>
+                    <span className="text-xs font-bold" style={{ color: '#ff3d00' }}>{streakStats.loseStreak3x}</span>
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-gray-500">4x</div>
+                  <div className="flex justify-center gap-2">
+                    <span className="text-xs font-bold" style={{ color: '#00c853' }}>{streakStats.winStreak4x}</span>
+                    <span className="text-xs text-gray-500">/</span>
+                    <span className="text-xs font-bold" style={{ color: '#ff3d00' }}>{streakStats.loseStreak4x}</span>
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-gray-500">5x</div>
+                  <div className="flex justify-center gap-2">
+                    <span className="text-xs font-bold" style={{ color: '#00c853' }}>{streakStats.winStreak5x}</span>
+                    <span className="text-xs text-gray-500">/</span>
+                    <span className="text-xs font-bold" style={{ color: '#ff3d00' }}>{streakStats.loseStreak5x}</span>
+                  </div>
+                </div>
               </div>
             </Card>
-          </>
-        ) : (
-          <Card
-            className="p-12 border text-center"
-            style={{
-              background: '#0f1215',
-              borderColor: '#222',
-            }}
-          >
-            <div style={{ color: '#555' }}>
-              {allBets.length === 0 
-                ? 'မှတ်တမ်းမရှိသေးပါ။' 
-                : 'ရွေးချယ်ထားသော ရက်အပိုင်းအခြားတွင် မှတ်တမ်းမရှိပါ။'}
-            </div>
-          </Card>
-        )}
 
-        {/* Bet History List */}
-        {filteredBets.length > 0 && (
-          <>
-            <div className="space-y-4">
+            {/* Bet History List */}
+            <div className="space-y-2">
               {currentBets.map((bet) => {
                 const { text: statusText, color: statusColor } = getBetStatusDisplay(bet.status);
                 const multiplier = getBetMultiplier(bet.val);
@@ -508,32 +585,32 @@ export default function HistoryPage() {
                 return (
                   <Card
                     key={bet.id}
-                    className="p-4 border"
+                    className="p-2 border"
                     style={{
                       background: '#1e2329',
                       borderColor: '#222',
                     }}
                   >
-                    <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center justify-between gap-2">
                       <div className="flex-1">
-                        <div className="font-bold text-lg">{bet.val}</div>
-                        <div className="text-xs mt-1" style={{ color: '#888' }}>
+                        <div className="font-bold text-sm">{bet.val}</div>
+                        <div className="text-[10px] mt-0.5" style={{ color: '#888' }}>
                           #{bet.period}
                         </div>
-                        <div className="text-xs mt-1" style={{ color: '#555' }}>
+                        <div className="text-[10px] mt-0.5" style={{ color: '#555' }}>
                           {bet.date} • {formatTime(bet.createdAt)}
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="font-bold text-lg" style={{ color: amountColor }}>
+                        <div className="font-bold text-sm" style={{ color: amountColor }}>
                           {amountText}
                         </div>
-                        <div className="text-xs mt-1" style={{ color: '#555' }}>
+                        <div className="text-[10px] mt-0.5" style={{ color: '#555' }}>
                           {bet.amt.toLocaleString()} MMK
                         </div>
                         {bet.resultNumber !== undefined && (
-                          <div className="text-xs mt-1 font-bold" style={{ color: '#ffc107' }}>
-                            Result: {bet.resultNumber}
+                          <div className="text-[10px] mt-0.5 font-bold" style={{ color: '#ffc107' }}>
+                            {bet.resultNumber}
                           </div>
                         )}
                       </div>
@@ -545,22 +622,23 @@ export default function HistoryPage() {
 
             {/* Pagination */}
             {totalPages > 1 && (
-              <div className="flex items-center justify-between gap-2 mt-4">
+              <div className="flex items-center justify-between gap-2 mt-2">
                 <Button
                   onClick={handlePrevPage}
                   disabled={currentPage === 0}
-                  className="flex items-center gap-2 px-4 py-2 disabled:opacity-50"
+                  className="flex items-center gap-1 px-3 py-1 text-xs disabled:opacity-50"
                   style={{
                     background: '#ffc107',
                     color: '#000',
+                    height: '32px',
                   }}
                 >
-                  <ChevronLeft size={18} />
+                  <ChevronLeft size={14} />
                   အရှေ့
                 </Button>
 
                 <div className="flex-1 text-center">
-                  <span className="font-bold" style={{ color: '#ffc107' }}>
+                  <span className="text-xs font-bold" style={{ color: '#ffc107' }}>
                     {currentPage + 1} / {totalPages}
                   </span>
                 </div>
@@ -568,20 +646,35 @@ export default function HistoryPage() {
                 <Button
                   onClick={handleNextPage}
                   disabled={currentPage === totalPages - 1}
-                  className="flex items-center gap-2 px-4 py-2 disabled:opacity-50"
+                  className="flex items-center gap-1 px-3 py-1 text-xs disabled:opacity-50"
                   style={{
                     background: '#ffc107',
                     color: '#000',
+                    height: '32px',
                   }}
                 >
                   အနောက်
-                  <ChevronRight size={18} />
+                  <ChevronRight size={14} />
                 </Button>
               </div>
             )}
           </>
+        ) : (
+          <Card
+            className="p-8 border text-center"
+            style={{
+              background: '#0f1215',
+              borderColor: '#222',
+            }}
+          >
+            <div className="text-xs" style={{ color: '#555' }}>
+              {allBets.length === 0 
+                ? 'မှတ်တမ်းမရှိသေးပါ။' 
+                : 'ရွေးချယ်ထားသော ရက်အပိုင်းအခြားတွင် မှတ်တမ်းမရှိပါ။'}
+            </div>
+          </Card>
         )}
       </div>
     </main>
   );
-                      }
+                                   }
