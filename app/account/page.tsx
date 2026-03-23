@@ -64,7 +64,7 @@ export default function AccountPage() {
     setNewFund('');
     setCanEdit(false);
     setDaysRemaining(30);
-    setSuccess('ရန်ပုံငွေ အဆင်သင့်လုပ်ဆောင်ပြီးပါပြီ');
+    setSuccess(' တစ်လစာအတွက် ရန်ပုံငွေ သတ်မှတ်ပြီးပါပြီ Depositတင်ပြီး ကစားနိုင်ပါပြီ');
 
     setTimeout(() => setSuccess(''), 3000);
   };
@@ -129,7 +129,7 @@ export default function AccountPage() {
             {fund.toLocaleString()}
           </div>
           <div className="text-xs text-gray-500 mt-2">
-            10,000 - 200,000 အကြား
+            30,000 - 1,000,000 အကြား
           </div>
         </Card>
 
@@ -141,7 +141,7 @@ export default function AccountPage() {
             borderColor: '#222',
           }}
         >
-          <h3 className="font-bold mb-4">ရန်ပုံငွေ သတ်မှတ်မည်</h3>
+          <h3 className="font-bold mb-4">တစ်လစာအတွက် ရန်ပုံငွေ သတ်မှတ်မည်</h3>
 
           {error && (
             <div
@@ -184,7 +184,7 @@ export default function AccountPage() {
             type="number"
             value={newFund}
             onChange={(e) => setNewFund(e.target.value)}
-            placeholder="10000 - 200000"
+            placeholder="30000 - 1000000"
             className="mb-4"
             style={{
               background: '#000',
@@ -216,8 +216,8 @@ export default function AccountPage() {
         >
           <div className="space-y-2" style={{ color: '#888' }}>
             <p>• ရန်ပုံငွေကို လစ်လျှင် တစ်ကြိမ်သာ ပြင်ဆင်လို့ရပါသည်</p>
-            <p>• ရန်ပုံငွေ အများဆုံး 200,000 MMK ထည့်သွင်းနိုင်ပါသည်</p>
-            <p>• ရန်ပုံငွေမှ အနည်းဆုံး 10,000 MMK ထည့်သွင်းရမည်</p>
+            <p>• ရန်ပုံငွေ အများဆုံး 1,000,000 MMK ထည့်သွင်းနိုင်ပါသည်</p>
+            <p>• ရန်ပုံငွေမှ အနည်းဆုံး 30,000 MMK ထည့်သွင်းရမည်</p>
           </div>
         </Card>
       </div>
