@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Filter, X, TrendingUp, TrendingDown, Flame } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Filter, TrendingUp, TrendingDown } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { getBets, getFund, Bet } from '@/lib/storage';
@@ -64,8 +64,20 @@ function formatDateRange(start: Date, end: Date): string {
   return `${startStr} - ${endStr}`;
 }
 
-// Calculate streak information with skip logic 
-// (1-3 skips = streak continues, 4+ skips = streak breaks)
+// Streak Stats Interface
+interface StreakStats {
+  highestWinStreak: number;
+  highestLoseStreak: number;
+  winStreak3x: number;
+  winStreak4x: number;
+  winStreak5x: number;
+  loseStreak3x: number;
+  loseStreak4x: number;
+  loseStreak5x: number;
+}
+
+// Calculate streak information with skip logic
+// 1-3 skips = streak continues, 4+ skips = streak breaks
 function calculateStreakStats(bets: Bet[]): StreakStats {
   if (bets.length === 0) {
     return {
@@ -181,7 +193,7 @@ function calculateStreakStats(bets: Bet[]): StreakStats {
     loseStreak4x,
     loseStreak5x,
   };
-      }
+}
 
 export default function HistoryPage() {
   const router = useRouter();
@@ -192,13 +204,16 @@ export default function HistoryPage() {
   const [customStartDate, setCustomStartDate] = useState<Date | undefined>(new Date());
   const [customEndDate, setCustomEndDate] = useState<Date | undefined>(new Date());
   const [calendarOpen, setCalendarOpen] = useState(false);
-  const [fundAmount, setFundAmount] = useState(0);
+  const [initialFund, setInitialFund] = useState(0);
 
-  // Load all bets and fund
+  // Load all bets and initial fund
   useEffect(() => {
     const bets = getBets();
     setAllBets(bets);
-    setFundAmount(getFund());
+    
+    // Get the initial fund amount (the amount user set at the beginning of the month)
+    const fund = getFund();
+    setInitialFund(fund);
   }, []);
 
   // Apply filter when filter changes
@@ -243,7 +258,9 @@ export default function HistoryPage() {
     const netProfit = totalWinAmount - totalLostAmount;
     const winRate = totalMatches > 0 ? (winMatches / totalMatches) * 100 : 0;
     const lostRate = totalMatches > 0 ? (lostMatches / totalMatches) * 100 : 0;
-    const fundPercentage = fundAmount > 0 ? (netProfit / fundAmount) * 100 : 0;
+    
+    // Calculate profit percentage based on INITIAL FUND (not current fund)
+    const profitPercentage = initialFund > 0 ? (netProfit / initialFund) * 100 : 0;
 
     return {
       totalMatches,
@@ -255,9 +272,10 @@ export default function HistoryPage() {
       lostMatches,
       winRate,
       lostRate,
-      fundPercentage,
+      profitPercentage,
+      initialFund,
     };
-  }, [filteredBets, fundAmount]);
+  }, [filteredBets, initialFund]);
 
   // Calculate streak statistics
   const streakStats = useMemo(() => calculateStreakStats(filteredBets), [filteredBets]);
@@ -294,8 +312,6 @@ export default function HistoryPage() {
 
   const handleFilterChange = (value: string) => {
     setDateFilter(value as DateFilter);
-    if (value !== 'custom') {
-    }
   };
 
   const handleCustomDateSelect = () => {
@@ -460,9 +476,9 @@ export default function HistoryPage() {
                 {stats.netProfit >= 0 ? '+' : ''}{stats.netProfit.toLocaleString()} MMK
               </div>
               <div className="text-xs text-gray-400 mt-1">
-                vs Fund ({fundAmount.toLocaleString()} MMK): 
-                <span style={{ color: stats.netProfit >= 0 ? '#00c853' : '#ff3d00' }}>
-                  {' '}{stats.fundPercentage >= 0 ? '+' : ''}{stats.fundPercentage.toFixed(2)}%
+                vs Initial Fund ({stats.initialFund.toLocaleString()} MMK): 
+                <span style={{ color: stats.profitPercentage >= 0 ? '#00c853' : '#ff3d00' }}>
+                  {' '}{stats.profitPercentage >= 0 ? '+' : ''}{stats.profitPercentage.toFixed(2)}%
                 </span>
               </div>
             </Card>
@@ -654,4 +670,4 @@ export default function HistoryPage() {
       </div>
     </main>
   );
-                  }
+}
