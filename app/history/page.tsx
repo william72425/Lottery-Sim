@@ -64,6 +64,16 @@ function formatDateRange(start: Date, end: Date): string {
   return `${startStr} - ${endStr}`;
 }
 
+// Helper to get period number from issue number (e.g., "20260323001" -> 1)
+function getPeriodNumber(issueNumber: string): number {
+  // Extract the last digits - assuming format like YYYYMMDDXXX
+  const match = issueNumber.match(/(\d+)$/);
+  if (match) {
+    return parseInt(match[1], 10);
+  }
+  return 0;
+}
+
 // Streak Stats Interface
 interface StreakStats {
   highestWinStreak: number;
@@ -76,8 +86,8 @@ interface StreakStats {
   loseStreak5x: number;
 }
 
-// Calculate streak information with skip logic
-// 1-3 skips = streak continues, 4+ skips = streak breaks
+// Calculate streak information based on TIME (minutes) difference
+// If gap between consecutive bets > 4 minutes, streak breaks
 function calculateStreakStats(bets: Bet[]): StreakStats {
   if (bets.length === 0) {
     return {
@@ -99,7 +109,7 @@ function calculateStreakStats(bets: Bet[]): StreakStats {
 
   let currentStreak = 0;
   let currentStreakType: 'win' | 'lose' | null = null;
-  let skipCount = 0;
+  let lastBetTime: Date | null = null;
   
   let highestWinStreak = 0;
   let highestLoseStreak = 0;
@@ -130,52 +140,55 @@ function calculateStreakStats(bets: Bet[]): StreakStats {
     const isWin = bet.status === 'win';
     const isLoss = bet.status === 'lost';
     const isWait = bet.status === 'wait';
+    const currentBetTime = new Date(bet.createdAt);
 
     // Skip waiting bets (not yet resolved)
     if (isWait) {
       continue;
     }
 
-    if (isWin || isLoss) {
-      const currentType = isWin ? 'win' : 'lose';
-      
-      // Check if we have a skip gap that breaks the streak
-      if (currentStreakType !== null && currentStreakType !== currentType) {
-        // Different type - check if skipCount breaks the streak
-        if (skipCount >= 4) {
-          // 4+ skips: streak breaks, record previous streak
-          if (currentStreak > 0) {
-            recordStreak(currentStreak, currentStreakType);
-          }
-          // Start new streak
-          currentStreak = 1;
-          currentStreakType = currentType;
-          skipCount = 0;
-        } else {
-          // 0-3 skips: streak continues with new type
-          // Record the previous streak first
-          if (currentStreak > 0) {
-            recordStreak(currentStreak, currentStreakType);
-          }
-          // Start new streak
-          currentStreak = 1;
-          currentStreakType = currentType;
-          skipCount = 0;
-        }
-      } else if (currentStreakType === currentType) {
-        // Same streak continues
-        currentStreak++;
-        skipCount = 0;
-      } else {
-        // First bet (no current streak)
-        currentStreak = 1;
-        currentStreakType = currentType;
-        skipCount = 0;
-      }
-    } else {
-      // This is a skipped bet (no bet placed)
-      skipCount++;
+    // Check time gap since last bet
+    let timeGapMinutes = 0;
+    if (lastBetTime) {
+      timeGapMinutes = (currentBetTime.getTime() - lastBetTime.getTime()) / (1000 * 60);
     }
+
+    const currentType = isWin ? 'win' : 'lose';
+
+    // Check if time gap breaks the streak (> 4 minutes gap)
+    const isStreakBrokenByTime = lastBetTime !== null && timeGapMinutes > 4;
+
+    if (isStreakBrokenByTime) {
+      // Time gap > 4 minutes: streak breaks
+      if (currentStreak > 0 && currentStreakType) {
+        recordStreak(currentStreak, currentStreakType);
+      }
+      // Start new streak with current bet
+      currentStreak = 1;
+      currentStreakType = currentType;
+      lastBetTime = currentBetTime;
+      continue;
+    }
+
+    // No time break - check streak continuity
+    if (currentStreakType === null) {
+      // First bet
+      currentStreak = 1;
+      currentStreakType = currentType;
+    } else if (currentStreakType === currentType) {
+      // Same streak continues
+      currentStreak++;
+    } else {
+      // Different type - streak ends, record it
+      if (currentStreak > 0) {
+        recordStreak(currentStreak, currentStreakType);
+      }
+      // Start new streak with current bet
+      currentStreak = 1;
+      currentStreakType = currentType;
+    }
+
+    lastBetTime = currentBetTime;
   }
 
   // Record the final streak
@@ -277,7 +290,7 @@ export default function HistoryPage() {
     };
   }, [filteredBets, initialFund]);
 
-  // Calculate streak statistics
+  // Calculate streak statistics (based on time)
   const streakStats = useMemo(() => calculateStreakStats(filteredBets), [filteredBets]);
 
   // Group filtered bets by date
@@ -452,6 +465,11 @@ export default function HistoryPage() {
               </PopoverContent>
             </Popover>
           </div>
+          
+          {/* Info note about streak calculation */}
+          <div className="text-[10px] text-gray-500 mt-1 text-center">
+            * Streaks break if gap between bets &gt; 4 minutes
+          </div>
         </Card>
 
         {/* Statistics Cards */}
@@ -509,7 +527,7 @@ export default function HistoryPage() {
               </Card>
             </div>
 
-            {/* Row 3: Streak Stats - Highest */}
+             {/* Row 3: Streak Stats - Highest */}
             <div className="grid grid-cols-2 gap-2">
               <Card className="p-2 border" style={{ background: '#0f5a2e', borderColor: '#00c853' }}>
                 <div className="flex items-center gap-1">
@@ -670,4 +688,4 @@ export default function HistoryPage() {
       </div>
     </main>
   );
-}
+                  }
