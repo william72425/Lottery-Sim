@@ -64,18 +64,8 @@ function formatDateRange(start: Date, end: Date): string {
   return `${startStr} - ${endStr}`;
 }
 
-// Calculate streak information with skip logic (1-3 skips don't break streak, 4+ skips break)
-interface StreakStats {
-  highestWinStreak: number;
-  highestLoseStreak: number;
-  winStreak3x: number;
-  winStreak4x: number;
-  winStreak5x: number;
-  loseStreak3x: number;
-  loseStreak4x: number;
-  loseStreak5x: number;
-}
-
+// Calculate streak information with skip logic 
+// (1-3 skips = streak continues, 4+ skips = streak breaks)
 function calculateStreakStats(bets: Bet[]): StreakStats {
   if (bets.length === 0) {
     return {
@@ -108,12 +98,28 @@ function calculateStreakStats(bets: Bet[]): StreakStats {
   let loseStreak4x = 0;
   let loseStreak5x = 0;
 
+  // Function to record a completed streak
+  const recordStreak = (streak: number, type: 'win' | 'lose') => {
+    if (type === 'win') {
+      if (streak >= 3) winStreak3x++;
+      if (streak >= 4) winStreak4x++;
+      if (streak >= 5) winStreak5x++;
+      highestWinStreak = Math.max(highestWinStreak, streak);
+    } else {
+      if (streak >= 3) loseStreak3x++;
+      if (streak >= 4) loseStreak4x++;
+      if (streak >= 5) loseStreak5x++;
+      highestLoseStreak = Math.max(highestLoseStreak, streak);
+    }
+  };
+
   for (let i = 0; i < sortedBets.length; i++) {
     const bet = sortedBets[i];
     const isWin = bet.status === 'win';
     const isLoss = bet.status === 'lost';
     const isWait = bet.status === 'wait';
 
+    // Skip waiting bets (not yet resolved)
     if (isWait) {
       continue;
     }
@@ -121,61 +127,48 @@ function calculateStreakStats(bets: Bet[]): StreakStats {
     if (isWin || isLoss) {
       const currentType = isWin ? 'win' : 'lose';
       
-      if (currentStreakType === currentType) {
-        currentStreak++;
-        skipCount = 0;
-      } else if (currentStreakType === null) {
-        currentStreak = 1;
-        currentStreakType = currentType;
-        skipCount = 0;
-      } else {
-        if (skipCount <= 3) {
-          if (currentStreakType === 'win') {
-            if (currentStreak >= 3) winStreak3x++;
-            if (currentStreak >= 4) winStreak4x++;
-            if (currentStreak >= 5) winStreak5x++;
-            highestWinStreak = Math.max(highestWinStreak, currentStreak);
-          } else {
-            if (currentStreak >= 3) loseStreak3x++;
-            if (currentStreak >= 4) loseStreak4x++;
-            if (currentStreak >= 5) loseStreak5x++;
-            highestLoseStreak = Math.max(highestLoseStreak, currentStreak);
+      // Check if we have a skip gap that breaks the streak
+      if (currentStreakType !== null && currentStreakType !== currentType) {
+        // Different type - check if skipCount breaks the streak
+        if (skipCount >= 4) {
+          // 4+ skips: streak breaks, record previous streak
+          if (currentStreak > 0) {
+            recordStreak(currentStreak, currentStreakType);
           }
+          // Start new streak
           currentStreak = 1;
           currentStreakType = currentType;
           skipCount = 0;
         } else {
-          if (currentStreakType === 'win') {
-            if (currentStreak >= 3) winStreak3x++;
-            if (currentStreak >= 4) winStreak4x++;
-            if (currentStreak >= 5) winStreak5x++;
-            highestWinStreak = Math.max(highestWinStreak, currentStreak);
-          } else if (currentStreakType === 'lose') {
-            if (currentStreak >= 3) loseStreak3x++;
-            if (currentStreak >= 4) loseStreak4x++;
-            if (currentStreak >= 5) loseStreak5x++;
-            highestLoseStreak = Math.max(highestLoseStreak, currentStreak);
+          // 0-3 skips: streak continues with new type
+          // Record the previous streak first
+          if (currentStreak > 0) {
+            recordStreak(currentStreak, currentStreakType);
           }
+          // Start new streak
           currentStreak = 1;
           currentStreakType = currentType;
           skipCount = 0;
         }
+      } else if (currentStreakType === currentType) {
+        // Same streak continues
+        currentStreak++;
+        skipCount = 0;
+      } else {
+        // First bet (no current streak)
+        currentStreak = 1;
+        currentStreakType = currentType;
+        skipCount = 0;
       }
     } else {
+      // This is a skipped bet (no bet placed)
       skipCount++;
     }
   }
 
-  if (currentStreakType === 'win') {
-    if (currentStreak >= 3) winStreak3x++;
-    if (currentStreak >= 4) winStreak4x++;
-    if (currentStreak >= 5) winStreak5x++;
-    highestWinStreak = Math.max(highestWinStreak, currentStreak);
-  } else if (currentStreakType === 'lose') {
-    if (currentStreak >= 3) loseStreak3x++;
-    if (currentStreak >= 4) loseStreak4x++;
-    if (currentStreak >= 5) loseStreak5x++;
-    highestLoseStreak = Math.max(highestLoseStreak, currentStreak);
+  // Record the final streak
+  if (currentStreak > 0 && currentStreakType) {
+    recordStreak(currentStreak, currentStreakType);
   }
 
   return {
@@ -188,7 +181,7 @@ function calculateStreakStats(bets: Bet[]): StreakStats {
     loseStreak4x,
     loseStreak5x,
   };
-}
+      }
 
 export default function HistoryPage() {
   const router = useRouter();
