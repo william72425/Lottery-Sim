@@ -11,6 +11,9 @@ export interface GameResult {
   color?: string;
 }
 
+// Store the latest API period for betting
+let lastAPIPeriod: string | null = null;
+
 // Fetch latest game results from API
 export async function fetchGameResults(): Promise<GameResult[]> {
   try {
@@ -18,14 +21,27 @@ export async function fetchGameResults(): Promise<GameResult[]> {
     if (!response.ok) throw new Error('API Error');
     
     const data = await response.json();
-    return data?.data?.list || [];
+    const results = data?.data?.list || [];
+    
+    // Update last API period with the latest result
+    if (results.length > 0) {
+      const sorted = [...results].sort((a, b) => {
+        if (a.issueNumber.length === b.issueNumber.length) {
+          return b.issueNumber.localeCompare(a.issueNumber);
+        }
+        return b.issueNumber.length - a.issueNumber.length;
+      });
+      lastAPIPeriod = sorted[0].issueNumber;
+    }
+    
+    return results;
   } catch (e) {
     console.log('[v0] Error fetching game results:', e);
     return [];
   }
 }
 
-// Get the next period number (BigInt to handle large numbers)
+// Get the next period number based on API or local time
 export function getNextPeriod(latestPeriod: string): string {
   try {
     const nextPeriod = BigInt(latestPeriod) + 1n;
@@ -34,6 +50,30 @@ export function getNextPeriod(latestPeriod: string): string {
     console.log('[v0] Error calculating next period:', e);
     return '0';
   }
+}
+
+// Get current period for betting - uses API period if available
+export function getCurrentPeriodForBet(): string {
+  if (lastAPIPeriod) {
+    try {
+      const nextPeriod = BigInt(lastAPIPeriod) + 1n;
+      return nextPeriod.toString();
+    } catch (e) {
+      console.log('[v0] Error calculating next period from API:', e);
+    }
+  }
+  // Fallback to local time
+  return getCurrentPeriodFromLocalTime();
+}
+
+// Reset API period (useful for testing)
+export function resetAPIPeriod(): void {
+  lastAPIPeriod = null;
+}
+
+// Get the last API period (for debugging)
+export function getLastAPIPeriod(): string | null {
+  return lastAPIPeriod;
 }
 
 // Get countdown timer (seconds remaining in current period)
@@ -52,23 +92,19 @@ export function getCurrentPeriodTime(): { countdown: number; isLocked: boolean }
 
 // ========== MYANMAR TIME (UTC+6:30) FUNCTIONS ==========
 
-// Get current period based on Myanmar local time (UTC+6:30)
-// Format: YYYYMMDDXXX (XXX = minute of day, starting from 1)
+// Get current period based on Myanmar local time (UTC+6:30) - FALLBACK ONLY
 export function getCurrentPeriodFromLocalTime(): string {
   const now = new Date();
   
-  // Convert to Myanmar time (UTC+6:30)
   const utcTime = now.getTime();
-  const myanmarOffset = 6.5 * 60 * 60 * 1000; // 6.5 hours in milliseconds
+  const myanmarOffset = 6.5 * 60 * 60 * 1000;
   const myanmarTime = new Date(utcTime + myanmarOffset);
   
   const year = myanmarTime.getUTCFullYear();
   const month = String(myanmarTime.getUTCMonth() + 1).padStart(2, '0');
   const day = String(myanmarTime.getUTCDate()).padStart(2, '0');
   
-  // Minutes since start of day (0-1439)
   const minutesSinceMidnight = myanmarTime.getUTCHours() * 60 + myanmarTime.getUTCMinutes();
-  // Sequence number: minute of day + 1 (since period starts at 1)
   const sequence = String(minutesSinceMidnight + 1).padStart(3, '0');
   
   return `${year}${month}${day}${sequence}`;
@@ -102,7 +138,6 @@ export function getDateFromPeriod(period: string): string {
 export function getDisplayDateFromPeriod(period: string): string {
   const periodDate = getDateFromPeriod(period);
   
-  // Get current Myanmar date
   const now = new Date();
   const myanmarOffset = 6.5 * 60 * 60 * 1000;
   const myanmarNow = new Date(now.getTime() + myanmarOffset);
@@ -249,4 +284,4 @@ export function getStoredResults(): GameResult[] {
     console.log('[v0] Error getting results:', e);
     return [];
   }
-          }
+}
