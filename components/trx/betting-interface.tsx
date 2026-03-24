@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { AlertTriangle } from 'lucide-react';
-import { getNumberColor, formatCurrency, validateBetAmount, getCurrentPeriodFromLocalTime } from '@/lib/trx-utils';
+import { getNumberColor, formatCurrency, validateBetAmount, getCurrentPeriodForBet } from '@/lib/trx-utils';
 import { addBet, deductFromWallet, getWallet } from '@/lib/storage';
 import { playNotificationSound } from '@/lib/sound';
 import { BetTagSelector } from '@/components/bet-tag-selector';
@@ -72,7 +72,8 @@ export function BettingInterface({
     }
 
     if (deductFromWallet(totalBetAmount)) {
-      const currentPeriod = getCurrentPeriodFromLocalTime();
+      // IMPORTANT: Use API-based period for betting (next period after latest result)
+      const currentPeriod = getCurrentPeriodForBet();
       
       const newBet = addBet({
         period: currentPeriod,
@@ -330,4 +331,4 @@ export function BettingInterface({
       )}
     </div>
   );
-                  }
+}
