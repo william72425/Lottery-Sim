@@ -103,26 +103,24 @@ export function getFundEditCountdown(): { canEdit: boolean; daysRemaining: numbe
 // Bet Operations
 export interface Bet {
   id: string;
-  period: string;
-  val: string; // GREEN, RED, VIOLET, BIG, SMALL, or number
+  period: string;        // API period number (e.g., "20260324001")
+  val: string;           // GREEN, RED, VIOLET, BIG, SMALL, or number
   amt: number;
-  status: 'wait' | 'win' | 'lost'; // wait, win, lost
-  createdAt: string;
+  status: 'wait' | 'win' | 'lost';
+  createdAt: string;     // ISO string of bet placement time
   resultNumber?: number;
-}
-
-export function getBets(): Bet[] {
-  if (typeof window === 'undefined') return [];
-  const bets = localStorage.getItem(STORAGE_KEYS.BETS);
-  return bets ? JSON.parse(bets) : [];
 }
 
 export function addBet(bet: Omit<Bet, 'id' | 'createdAt'>): Bet {
   const bets = getBets();
+  const now = new Date();
+  
+  // Store bet with current local time in ISO format
+  // This will be Myanmar time because browser local time is Myanmar
   const newBet: Bet = {
     ...bet,
     id: `bet_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-    createdAt: new Date().toISOString(),
+    createdAt: now.toISOString(),
   };
   bets.unshift(newBet);
   localStorage.setItem(STORAGE_KEYS.BETS, JSON.stringify(bets));
