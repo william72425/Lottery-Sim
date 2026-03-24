@@ -553,4 +553,249 @@ export default function HistoryPage() {
             <Card
               className="p-4 border text-center"
               style={{
- 
+                background: stats.netProfit >= 0 
+                  ? 'linear-gradient(135deg, #1a3a1a 0%, #0a1a0a 100%)'
+                  : 'linear-gradient(135deg, #3a1a1a 0%, #1a0a0a 100%)',
+                borderColor: stats.netProfit >= 0 ? '#00c853' : '#ff3d00',
+                borderBottomWidth: '4px',
+              }}
+            >
+              <div className="text-xs text-gray-300 mb-1">Net Profit</div>
+              <div 
+                className="text-4xl font-black"
+                style={{ color: stats.netProfit >= 0 ? '#00c853' : '#ff3d00' }}
+              >
+                {stats.netProfit >= 0 ? '+' : ''}{stats.netProfit.toLocaleString()} MMK
+              </div>
+              <div className="text-xs text-gray-400 mt-1">
+                vs Fund ({stats.initialFund.toLocaleString()} MMK): 
+                <span style={{ color: stats.profitPercentage >= 0 ? '#00c853' : '#ff3d00' }}>
+                  {' '}{stats.profitPercentage >= 0 ? '+' : ''}{stats.profitPercentage.toFixed(2)}%
+                </span>
+              </div>
+            </Card>
+
+            {/* Row 1: Basic Stats */}
+            <div className="grid grid-cols-2 gap-2">
+              <Card className="p-2 border" style={{ background: 'var(--theme-card-bg, #1e2329)', borderColor: 'var(--theme-border, #222)' }}>
+                <div className="text-[10px] text-gray-400">Played</div>
+                <div className="text-lg font-bold text-white">{stats.totalMatches}</div>
+              </Card>
+              <Card className="p-2 border" style={{ background: 'var(--theme-card-bg, #1e2329)', borderColor: 'var(--theme-border, #222)' }}>
+                <div className="text-[10px] text-gray-400">Total Bet</div>
+                <div className="text-lg font-bold text-white">{stats.totalBetAmount.toLocaleString()}</div>
+              </Card>
+            </div>
+
+            {/* Row 2: Win/Loss Stats */}
+            <div className="grid grid-cols-2 gap-2">
+              <Card className="p-2 border" style={{ background: '#1a3a1a', borderColor: '#00c853' }}>
+                <div className="text-[10px] text-gray-300">Win</div>
+                <div className="text-base font-bold" style={{ color: '#00c853' }}>+{stats.totalWinAmount.toLocaleString()}</div>
+                <div className="text-[10px] text-gray-400">{stats.winMatches} matches ({stats.winRate.toFixed(1)}%)</div>
+              </Card>
+              <Card className="p-2 border" style={{ background: '#3a1a1a', borderColor: '#ff3d00' }}>
+                <div className="text-[10px] text-gray-300">Loss</div>
+                <div className="text-base font-bold" style={{ color: '#ff3d00' }}>-{stats.totalLostAmount.toLocaleString()}</div>
+                <div className="text-[10px] text-gray-400">{stats.lostMatches} matches ({stats.lostRate.toFixed(1)}%)</div>
+              </Card>
+            </div>
+
+            {/* Row 3: Streak Stats - Highest */}
+            <div className="grid grid-cols-2 gap-2">
+              <Card className="p-2 border" style={{ background: '#0f5a2e', borderColor: '#00c853' }}>
+                <div className="flex items-center gap-1">
+                  <TrendingUp size={12} style={{ color: '#00c853' }} />
+                  <span className="text-[10px] text-gray-300">Highest Win Streak</span>
+                </div>
+                <div className="text-xl font-bold" style={{ color: '#00c853' }}>{streakStats.highestWinStreak}</div>
+              </Card>
+              <Card className="p-2 border" style={{ background: '#8b2c2c', borderColor: '#ff3d00' }}>
+                <div className="flex items-center gap-1">
+                  <TrendingDown size={12} style={{ color: '#ff3d00' }} />
+                  <span className="text-[10px] text-gray-300">Highest Loss Streak</span>
+                </div>
+                <div className="text-xl font-bold" style={{ color: '#ff3d00' }}>{streakStats.highestLoseStreak}</div>
+              </Card>
+            </div>
+
+            {/* Row 4: Multiplier Streak Stats */}
+            <Card className="p-2 border" style={{ background: '#0f1215', borderColor: '#333' }}>
+              <div className="text-[10px] text-gray-400 mb-1.5 text-center">Consecutive Wins / Losses</div>
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div>
+                  <div className="text-[10px] text-gray-500">3x</div>
+                  <div className="flex justify-center gap-2">
+                    <span className="text-xs font-bold" style={{ color: '#00c853' }}>{streakStats.winStreak3x}</span>
+                    <span className="text-xs text-gray-500">/</span>
+                    <span className="text-xs font-bold" style={{ color: '#ff3d00' }}>{streakStats.loseStreak3x}</span>
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-gray-500">4x</div>
+                  <div className="flex justify-center gap-2">
+                    <span className="text-xs font-bold" style={{ color: '#00c853' }}>{streakStats.winStreak4x}</span>
+                    <span className="text-xs text-gray-500">/</span>
+                    <span className="text-xs font-bold" style={{ color: '#ff3d00' }}>{streakStats.loseStreak4x}</span>
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-gray-500">5x</div>
+                  <div className="flex justify-center gap-2">
+                    <span className="text-xs font-bold" style={{ color: '#00c853' }}>{streakStats.winStreak5x}</span>
+                    <span className="text-xs text-gray-500">/</span>
+                    <span className="text-xs font-bold" style={{ color: '#ff3d00' }}>{streakStats.loseStreak5x}</span>
+                  </div>
+                </div>
+              </div>
+            </Card>
+
+            {/* Bet History List */}
+            <div className="space-y-2">
+              {currentBets.map((bet) => {
+                const { text: statusText, color: statusColor } = getBetStatusDisplay(bet.status);
+                const multiplier = getBetMultiplier(bet.val);
+                let amountText = statusText;
+                let amountColor = statusColor;
+
+                if (bet.status === 'win') {
+                  const winAmount = Math.floor(bet.amt * multiplier);
+                  amountText = `+${winAmount.toLocaleString()}`;
+                  amountColor = '#00c853';
+                } else if (bet.status === 'lost') {
+                  amountText = `-${bet.amt.toLocaleString()}`;
+                  amountColor = '#ff3d00';
+                }
+
+                const betNote = betNotes.find(n => n.betId === bet.id);
+                const tagInfo = betNote ? (betNote.tag === 'custom' 
+                  ? getAllTags().find(t => t.id === betNote.customTagId)
+                  : getAllTags().find(t => t.id === betNote.tag)) : null;
+
+                return (
+                  <Card
+                    key={bet.id}
+                    className="p-2 border cursor-pointer transition-all hover:opacity-80"
+                    style={{
+                      background: 'var(--theme-card-bg, #1e2329)',
+                      borderColor: 'var(--theme-border, #222)',
+                    }}
+                    onDoubleClick={() => handleBetTripleClick(bet)}
+                    title="Double-click to add/edit tag and note"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex-1">
+                        <div className="font-bold text-sm">{bet.val}</div>
+                        <div className="text-[10px] mt-0.5" style={{ color: '#888' }}>
+                          #{bet.period}
+                        </div>
+                        <div className="text-[10px] mt-0.5" style={{ color: '#555' }}>
+                          {bet.date} • {formatTime(bet.createdAt)}
+                        </div>
+                        {/* Tag Badge */}
+                        {tagInfo && (
+                          <div 
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium mt-1"
+                            style={{
+                              background: tagInfo.bgColor,
+                              color: tagInfo.color,
+                              border: `0.5px solid ${tagInfo.color}40`,
+                            }}
+                          >
+                            <Tag size={8} />
+                            {tagInfo.name}
+                            {betNote?.note && (
+                              <span className="opacity-70 ml-0.5" title={betNote.note}>📝</span>
+                            )}
+                            <Edit2 size={8} className="opacity-50" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <div className="font-bold text-sm" style={{ color: amountColor }}>
+                          {amountText}
+                        </div>
+                        <div className="text-[10px] mt-0.5" style={{ color: '#555' }}>
+                          {bet.amt.toLocaleString()} MMK
+                        </div>
+                        {bet.resultNumber !== undefined && (
+                          <div className="text-[10px] mt-0.5 font-bold" style={{ color: '#ffc107' }}>
+                            {bet.resultNumber}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between gap-2 mt-2">
+                <Button
+                  onClick={handlePrevPage}
+                  disabled={currentPage === 0}
+                  className="flex items-center gap-1 px-3 py-1 text-xs disabled:opacity-50"
+                  style={{
+                    background: 'var(--theme-primary, #ffc107)',
+                    color: '#000',
+                    height: '32px',
+                  }}
+                >
+                  <ChevronLeft size={14} />
+                  Prev
+                </Button>
+
+                <div className="flex-1 text-center">
+                  <span className="text-xs font-bold" style={{ color: 'var(--theme-primary, #ffc107)' }}>
+                    {currentPage + 1} / {totalPages}
+                  </span>
+                </div>
+
+                <Button
+                  onClick={handleNextPage}
+                  disabled={currentPage === totalPages - 1}
+                  className="flex items-center gap-1 px-3 py-1 text-xs disabled:opacity-50"
+                  style={{
+                    background: 'var(--theme-primary, #ffc107)',
+                    color: '#000',
+                    height: '32px',
+                  }}
+                >
+                  Next
+                  <ChevronRight size={14} />
+                </Button>
+              </div>
+            )}
+          </>
+        ) : (
+          <Card
+            className="p-8 border text-center"
+            style={{
+              background: '#0f1215',
+              borderColor: '#222',
+            }}
+          >
+            <div className="text-xs" style={{ color: '#555' }}>
+              {allBets.length === 0 
+                ? 'No history yet.' 
+                : 'No bets found for the selected filters.'}
+            </div>
+          </Card>
+        )}
+      </div>
+
+      {/* Tag Modal */}
+      <BetTagModal
+        isOpen={showTagModal}
+        bet={selectedBetForTag}
+        onClose={() => {
+          setShowTagModal(false);
+          setSelectedBetForTag(null);
+        }}
+        onSave={refreshNotes}
+      />
+    </main>
+  );
+}
