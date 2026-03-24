@@ -8,7 +8,7 @@ export interface GameResult {
   createTime: number;
   endTime: number;
   status: number;
-  color?: string; // API may return color (red, green, purple, or mix)
+  color?: string;
 }
 
 // Fetch latest game results from API
@@ -50,148 +50,197 @@ export function getCurrentPeriodTime(): { countdown: number; isLocked: boolean }
   return { countdown, isLocked };
 }
 
+// ========== MYANMAR TIME (UTC+6:30) FUNCTIONS ==========
+
+// Get current period based on Myanmar local time (UTC+6:30)
+// Format: YYYYMMDDXXX (XXX = minute of day, starting from 1)
+export function getCurrentPeriodFromLocalTime(): string {
+  const now = new Date();
+  
+  // Convert to Myanmar time (UTC+6:30)
+  const utcTime = now.getTime();
+  const myanmarOffset = 6.5 * 60 * 60 * 1000; // 6.5 hours in milliseconds
+  const myanmarTime = new Date(utcTime + myanmarOffset);
+  
+  const year = myanmarTime.getUTCFullYear();
+  const month = String(myanmarTime.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(myanmarTime.getUTCDate()).padStart(2, '0');
+  
+  // Minutes since start of day (0-1439)
+  const minutesSinceMidnight = myanmarTime.getUTCHours() * 60 + myanmarTime.getUTCMinutes();
+  // Sequence number: minute of day + 1 (since period starts at 1)
+  const sequence = String(minutesSinceMidnight + 1).padStart(3, '0');
+  
+  return `${year}${month}${day}${sequence}`;
+}
+
+// Get period number from a Date object (Myanmar time)
+export function getPeriodFromDate(date: Date): string {
+  const myanmarOffset = 6.5 * 60 * 60 * 1000;
+  const myanmarTime = new Date(date.getTime() + myanmarOffset);
+  
+  const year = myanmarTime.getUTCFullYear();
+  const month = String(myanmarTime.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(myanmarTime.getUTCDate()).padStart(2, '0');
+  
+  const minutesSinceMidnight = myanmarTime.getUTCHours() * 60 + myanmarTime.getUTCMinutes();
+  const sequence = String(minutesSinceMidnight + 1).padStart(3, '0');
+  
+  return `${year}${month}${day}${sequence}`;
+}
+
+// Get date string from period (YYYY-MM-DD) using Myanmar time
+export function getDateFromPeriod(period: string): string {
+  if (period.length < 8) return period;
+  const year = period.substring(0, 4);
+  const month = period.substring(4, 6);
+  const day = period.substring(6, 8);
+  return `${year}-${month}-${day}`;
+}
+
+// Get display date from period (Today, Yesterday, or DD/MM/YYYY)
+export function getDisplayDateFromPeriod(period: string): string {
+  const periodDate = getDateFromPeriod(period);
+  
+  // Get current Myanmar date
+  const now = new Date();
+  const myanmarOffset = 6.5 * 60 * 60 * 1000;
+  const myanmarNow = new Date(now.getTime() + myanmarOffset);
+  const todayStr = `${myanmarNow.getUTCFullYear()}-${String(myanmarNow.getUTCMonth() + 1).padStart(2, '0')}-${String(myanmarNow.getUTCDate()).padStart(2, '0')}`;
+  
+  const yesterday = new Date(myanmarNow.getTime() - 24 * 60 * 60 * 1000);
+  const yesterdayStr = `${yesterday.getUTCFullYear()}-${String(yesterday.getUTCMonth() + 1).padStart(2, '0')}-${String(yesterday.getUTCDate()).padStart(2, '0')}`;
+  
+  if (periodDate === todayStr) return 'Today';
+  if (periodDate === yesterdayStr) return 'Yesterday';
+  
+  const [year, month, day] = periodDate.split('-');
+  return `${day}/${month}/${year}`;
+}
+
+// ========== END MYANMAR TIME FUNCTIONS ==========
+
 // Color mapping for numbers — used only if API doesn't provide color
-// API color format: 'red', 'green', 'purple', or mixed like 'red-purple'
 export function getNumberColor(num: number, apiColor?: string): string {
-  // If API provided a color, map it to hex
   if (apiColor) {
     const colorMap: Record<string, string> = {
       red: '#ff3d00',
       green: '#00c853',
       purple: '#d500f9',
+      violet: '#d500f9',
       'red-purple': 'linear-gradient(to bottom right, #ff3d00 50%, #d500f9 50%)',
       'red-green': 'linear-gradient(to bottom right, #ff3d00 50%, #00c853 50%)',
       'green-purple': 'linear-gradient(to bottom right, #00c853 50%, #d500f9 50%)',
-      violet: '#d500f9',
       'red-violet': 'linear-gradient(to bottom right, #ff3d00 50%, #d500f9 50%)',
       'green-violet': 'linear-gradient(to bottom right, #00c853 50%, #d500f9 50%)',
     };
     return colorMap[apiColor.toLowerCase()] || colorMap['red'] || '#333';
   }
 
-  // Fallback: use hardcoded mapping by number if no API color
   const colorMap: Record<number, string> = {
-    0: 'linear-gradient(to bottom right, #ff3d00 50%, #d500f9 50%)', // Red + Violet
-    1: '#00c853', // Green
-    2: '#ff3d00', // Red
-    3: '#00c853', // Green
-    4: '#ff3d00', // Red
-    5: 'linear-gradient(to bottom right, #00c853 50%, #d500f9 50%)', // Green + Violet
-    6: '#ff3d00', // Red
-    7: '#00c853', // Green
-    8: '#ff3d00', // Red
-    9: '#00c853', // Green
+    0: 'linear-gradient(to bottom right, #ff3d00 50%, #d500f9 50%)',
+    1: '#00c853',
+    2: '#ff3d00',
+    3: '#00c853',
+    4: '#ff3d00',
+    5: 'linear-gradient(to bottom right, #00c853 50%, #d500f9 50%)',
+    6: '#ff3d00',
+    7: '#00c853',
+    8: '#ff3d00',
+    9: '#00c853',
   };
 
   return colorMap[num] || '#333';
 }
 
-// Check if bet is a color bet
 export function isColorBet(val: string): boolean {
   return ['GREEN', 'RED', 'VIOLET', 'BIG', 'SMALL'].includes(val);
 }
 
-// Get multiplier for a bet type
 export function getBetMultiplier(betValue: string): number {
   if (isColorBet(betValue)) {
-    return 1.98; // Color bets pay ~2x
+    return 1.98;
   } else {
-    return 8.82; // Number bets pay ~9x
+    return 8.82;
   }
 }
 
-// Format currency
 export function formatCurrency(amount: number): string {
   return amount.toLocaleString('en-US');
 }
 
-// Get bet status display
 export function getBetStatusDisplay(status: string): { text: string; color: string } {
   switch (status) {
     case 'wait':
-      return { text: 'စောင့်ဆိုင်းဆဲ', color: '#ffc107' };
+      return { text: 'Pending', color: '#ffc107' };
     case 'win':
-      return { text: 'အောင်လျှင်း', color: '#00c853' };
+      return { text: 'Win', color: '#00c853' };
     case 'lost':
-      return { text: 'ရှုံးသွား', color: '#ff3d00' };
+      return { text: 'Loss', color: '#ff3d00' };
     default:
       return { text: '---', color: '#888' };
   }
 }
 
-// Validate bet amount
 export function validateBetAmount(amount: number, wallet: number): { valid: boolean; error?: string } {
   if (amount <= 0) {
-    return { valid: false, error: 'မှားယွင်းတဲ့ပမ္ဆာဏ' };
+    return { valid: false, error: 'Invalid amount' };
   }
   if (amount > wallet) {
-    return { valid: false, error: 'လက်ကျန်ငွေ မလုံလောက်ပါ' };
+    return { valid: false, error: 'Insufficient balance' };
   }
   return { valid: true };
 }
 
-// Validate fund amount
 export function validateFundAmount(amount: number): { valid: boolean; error?: string } {
   if (amount < 10000 || amount > 200000) {
-    return { valid: false, error: 'ရန်ပုံငွေ 10,000 နှင့် 200,000 အကြားရှိရမည်' };
+    return { valid: false, error: 'Fund must be between 10,000 and 200,000 MMK' };
   }
   return { valid: true };
 }
 
-// Validate deposit amount
 export function validateDepositAmount(amount: number): { valid: boolean; error?: string } {
   if (amount < 10000 || amount > 100000) {
-    return { valid: false, error: 'ဒီပို 10,000 နှင့် 100,000 အကြားရှိရမည်' };
+    return { valid: false, error: 'Deposit must be between 10,000 and 100,000 MMK' };
   }
   return { valid: true };
 }
 
-// Validate withdrawal amount
 export function validateWithdrawalAmount(amount: number, wallet: number): { valid: boolean; error?: string } {
   if (amount < 100) {
-    return { valid: false, error: 'အနည်းဆုံး 100 ထုတ်ယူရမည်' };
+    return { valid: false, error: 'Minimum withdrawal is 100 MMK' };
   }
   if (amount > wallet) {
-    return { valid: false, error: 'လက်ကျန်ငွေ မလုံလောက်ပါ' };
+    return { valid: false, error: 'Insufficient balance' };
   }
   return { valid: true };
 }
 
-// Store results in localStorage (keep up to 30 results for 3 pages)
-// Results are always stored newest-first (highest issueNumber at index 0)
 export function storeGameResults(newResults: GameResult[]): void {
   try {
     const storedResults = localStorage.getItem('trx_results');
     let allResults: GameResult[] = storedResults ? JSON.parse(storedResults) : [];
 
-    // Merge: add new results that don't already exist
     newResults.forEach((newResult) => {
       if (!allResults.find((r) => r.issueNumber === newResult.issueNumber)) {
         allResults.push(newResult);
       }
     });
 
-    // Always sort descending by issueNumber so newest is at index 0
-    // Use BigInt for large numbers or string comparison for same-length numbers
     allResults.sort((a, b) => {
-      // If same length, string comparison works correctly for numeric strings
       if (a.issueNumber.length === b.issueNumber.length) {
         return b.issueNumber.localeCompare(a.issueNumber);
       }
-      // Different lengths: longer number is bigger
       return b.issueNumber.length - a.issueNumber.length;
     });
 
-    // Keep only the latest 30 results (3 pages × 10 per page)
     allResults = allResults.slice(0, 30);
-
     localStorage.setItem('trx_results', JSON.stringify(allResults));
   } catch (e) {
     console.log('[v0] Error storing results:', e);
   }
 }
 
-// Get stored results
 export function getStoredResults(): GameResult[] {
   try {
     const storedResults = localStorage.getItem('trx_results');
@@ -200,4 +249,4 @@ export function getStoredResults(): GameResult[] {
     console.log('[v0] Error getting results:', e);
     return [];
   }
-}
+          }
