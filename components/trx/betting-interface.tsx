@@ -4,9 +4,12 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
-import { getNumberColor, formatCurrency, validateBetAmount } from '@/lib/trx-utils';
+import { AlertTriangle } from 'lucide-react';
+import { getNumberColor, formatCurrency, validateBetAmount, getCurrentPeriodFromLocalTime } from '@/lib/trx-utils';
 import { addBet, deductFromWallet, getWallet } from '@/lib/storage';
 import { playNotificationSound } from '@/lib/sound';
+import { BetTagSelector } from '@/components/bet-tag-selector';
+import { setBetNote, TagType, getAllTags } from '@/lib/bet-notes';
 
 interface BettingInterfaceProps {
   period: string;
@@ -26,6 +29,12 @@ export function BettingInterface({
   const [multiplier, setMultiplier] = useState(1);
   const [showBetSheet, setShowBetSheet] = useState(false);
   const [wallet, setWallet] = useState(0);
+  
+  // Tag & Note state
+  const [selectedTagId, setSelectedTagId] = useState<string | null>(null);
+  const [selectedCustomTagId, setSelectedCustomTagId] = useState<string | undefined>();
+  const [note, setNote] = useState('');
+  const [tagError, setTagError] = useState(false);
 
   useEffect(() => {
     setWallet(getWallet());
@@ -33,17 +42,28 @@ export function BettingInterface({
 
   const totalBetAmount = (parseInt(baseAmount) || 0) * multiplier;
   const canBet = !isLocked && totalBetAmount > 0 && totalBetAmount <= wallet;
+  const isTagValid = selectedTagId !== null;
 
   const handleBetClick = (betValue: string) => {
     if (isLocked) return;
     setSelectedBet(betValue);
     setMultiplier(1);
     setBaseAmount('1000');
+    setSelectedTagId(null);
+    setSelectedCustomTagId(undefined);
+    setNote('');
+    setTagError(false);
     setShowBetSheet(true);
   };
 
   const handleConfirmBet = () => {
     if (!selectedBet || totalBetAmount <= 0) return;
+
+    // Validate tag selection (required)
+    if (!isTagValid) {
+      setTagError(true);
+      return;
+    }
 
     const validation = validateBetAmount(totalBetAmount, wallet);
     if (!validation.valid) {
@@ -52,19 +72,39 @@ export function BettingInterface({
     }
 
     if (deductFromWallet(totalBetAmount)) {
-      addBet({
-        period,
+      const currentPeriod = getCurrentPeriodFromLocalTime();
+      
+      const newBet = addBet({
+        period: currentPeriod,
         val: selectedBet,
         amt: totalBetAmount,
         status: 'wait',
       });
 
+      // Save tag and note
+      setBetNote(
+        newBet.id,
+        selectedTagId === 'custom' ? 'custom' : selectedTagId as TagType,
+        selectedTagId === 'custom' ? selectedCustomTagId : undefined,
+        note || undefined
+      );
+
       playNotificationSound();
       setWallet(getWallet());
       setShowBetSheet(false);
       setSelectedBet(null);
+      setSelectedTagId(null);
+      setSelectedCustomTagId(undefined);
+      setNote('');
+      setTagError(false);
       onBetPlaced?.();
     }
+  };
+
+  const handleTagChange = (tagId: string, customTagId?: string) => {
+    setSelectedTagId(tagId);
+    setSelectedCustomTagId(customTagId);
+    if (tagError) setTagError(false);
   };
 
   const numberButtons = Array.from({ length: 10 }, (_, i) => i);
@@ -83,11 +123,11 @@ export function BettingInterface({
           <div className="text-center">
             <div
               className="text-9xl font-black"
-              style={{ color: '#ffc107' }}
+              style={{ color: 'var(--theme-primary, #ffc107)' }}
             >
               {countdown}
             </div>
-            <div className="text-gray-400 text-sm mt-2">နောက်ထပ်ပွဲ စတင်အောင်မျ</div>
+            <div className="text-gray-400 text-sm mt-2">Next round starting soon</div>
           </div>
         </div>
       )}
@@ -96,8 +136,8 @@ export function BettingInterface({
       <Card
         className="p-6 border"
         style={{
-          background: '#171c21',
-          borderColor: '#222',
+          background: 'var(--theme-card-bg, #171c21)',
+          borderColor: 'var(--theme-border, #222)',
         }}
       >
         <div className="flex items-center justify-between mb-6">
@@ -108,7 +148,7 @@ export function BettingInterface({
           <div
             className="px-4 py-2 rounded-lg font-black text-xl"
             style={{
-              background: '#ffc107',
+              background: 'var(--theme-primary, #ffc107)',
               color: '#000',
             }}
           >
@@ -122,9 +162,7 @@ export function BettingInterface({
             onClick={() => handleBetClick('GREEN')}
             disabled={isLocked}
             className="flex-1 py-4 rounded-xl font-bold text-white disabled:opacity-50"
-            style={{
-              background: '#00c853',
-            }}
+            style={{ background: '#00c853' }}
           >
             Green
           </button>
@@ -132,9 +170,7 @@ export function BettingInterface({
             onClick={() => handleBetClick('VIOLET')}
             disabled={isLocked}
             className="flex-1 py-4 rounded-xl font-bold text-white disabled:opacity-50"
-            style={{
-              background: '#d500f9',
-            }}
+            style={{ background: '#d500f9' }}
           >
             Violet
           </button>
@@ -142,9 +178,7 @@ export function BettingInterface({
             onClick={() => handleBetClick('RED')}
             disabled={isLocked}
             className="flex-1 py-4 rounded-xl font-bold text-white disabled:opacity-50"
-            style={{
-              background: '#ff3d00',
-            }}
+            style={{ background: '#ff3d00' }}
           >
             Red
           </button>
@@ -158,9 +192,7 @@ export function BettingInterface({
               onClick={() => handleBetClick(num.toString())}
               disabled={isLocked}
               className="aspect-square rounded-xl font-bold text-white disabled:opacity-50"
-              style={{
-                background: getNumberColor(num),
-              }}
+              style={{ background: getNumberColor(num) }}
             >
               {num}
             </button>
@@ -173,9 +205,7 @@ export function BettingInterface({
             onClick={() => handleBetClick('BIG')}
             disabled={isLocked}
             className="flex-1 py-4 rounded-xl font-bold text-white disabled:opacity-50"
-            style={{
-              background: '#ff9800',
-            }}
+            style={{ background: '#ff9800' }}
           >
             BIG
           </button>
@@ -183,81 +213,105 @@ export function BettingInterface({
             onClick={() => handleBetClick('SMALL')}
             disabled={isLocked}
             className="flex-1 py-4 rounded-xl font-bold text-white disabled:opacity-50"
-            style={{
-              background: '#00bcd4',
-            }}
+            style={{ background: '#00bcd4' }}
           >
             SMALL
           </button>
         </div>
       </Card>
 
-      {/* Bet Sheet Modal */}
+      {/* Bet Sheet Modal with Tag Selector */}
       {showBetSheet && (
         <>
           <div
             className="fixed inset-0 z-40"
             onClick={() => setShowBetSheet(false)}
-            style={{
-              background: 'rgba(0, 0, 0, 0.85)',
-            }}
+            style={{ background: 'rgba(0, 0, 0, 0.85)' }}
           />
           <div
-            className="fixed bottom-0 left-0 right-0 z-50 rounded-t-3xl p-6 max-w-md mx-auto"
+            className="fixed bottom-0 left-0 right-0 z-50 rounded-t-3xl p-5 max-w-md mx-auto"
             style={{
-              background: '#1e2329',
-              borderTop: '2px solid #ffc107',
+              background: 'var(--theme-card-bg, #1e2329)',
+              borderTop: `2px solid var(--theme-primary, #ffc107)`,
+              maxHeight: '85vh',
+              overflowY: 'auto',
             }}
           >
-            <h3 className="text-center font-bold mb-6">
-              ရွေးချယ်မှု:{' '}
-              <span style={{ color: '#ffc107' }}>
+            <h3 className="text-center font-bold mb-4">
+              Place Bet on{' '}
+              <span style={{ color: 'var(--theme-primary, #ffc107)' }}>
                 {selectedBet}
               </span>
             </h3>
 
             {/* Amount Input */}
-            <Input
-              type="number"
-              value={baseAmount}
-              onChange={(e) => setBaseAmount(e.target.value)}
-              className="mb-4 text-center text-xl font-bold"
-              style={{
-                background: '#000',
-                borderColor: '#444',
-                color: '#fff',
-              }}
-              placeholder="Amount"
-            />
+            <div className="mb-4">
+              <div className="text-sm font-medium mb-1" style={{ color: 'var(--theme-fg, #fff)' }}>
+                Amount (MMK)
+              </div>
+              <Input
+                type="number"
+                value={baseAmount}
+                onChange={(e) => setBaseAmount(e.target.value)}
+                className="text-center text-xl font-bold"
+                style={{
+                  background: 'var(--theme-bg-secondary, #000)',
+                  borderColor: 'var(--theme-border, #444)',
+                  color: 'var(--theme-fg, #fff)',
+                }}
+                placeholder="Amount"
+              />
+            </div>
 
             {/* Multiplier Buttons */}
-            <div className="grid grid-cols-6 gap-2 mb-6">
-              {[1, 5, 10, 20, 50, 100].map((x) => (
-                <button
-                  key={x}
-                  onClick={() => setMultiplier(x)}
-                  className={`py-2 rounded-lg text-xs font-bold transition-colors ${
-                    multiplier === x
-                      ? 'bg-yellow-400 text-black'
-                      : 'bg-gray-700 text-gray-300'
-                  }`}
-                  style={
-                    multiplier === x
-                      ? { background: '#ffc107', color: '#000' }
-                      : { background: '#333', color: '#888' }
-                  }
-                >
-                  X{x}
-                </button>
-              ))}
+            <div className="mb-4">
+              <div className="text-sm font-medium mb-1" style={{ color: 'var(--theme-fg, #fff)' }}>
+                Multiplier
+              </div>
+              <div className="grid grid-cols-6 gap-2">
+                {[1, 5, 10, 20, 50, 100].map((x) => (
+                  <button
+                    key={x}
+                    onClick={() => setMultiplier(x)}
+                    className={`py-2 rounded-lg text-xs font-bold transition-colors ${
+                      multiplier === x ? 'text-black' : 'text-gray-300'
+                    }`}
+                    style={
+                      multiplier === x
+                        ? { background: 'var(--theme-primary, #ffc107)', color: '#000' }
+                        : { background: 'var(--theme-bg-secondary, #333)', color: 'var(--theme-fg-muted, #888)' }
+                    }
+                  >
+                    X{x}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Total Display */}
             <div
-              className="text-center font-black text-3xl mb-6"
-              style={{ color: '#ffc107' }}
+              className="text-center font-black text-3xl mb-4"
+              style={{ color: 'var(--theme-primary, #ffc107)' }}
             >
               {formatCurrency(totalBetAmount)} MMK
+            </div>
+
+            {/* Tag Selector */}
+            <div className="mb-4">
+              <BetTagSelector
+                selectedTagId={selectedTagId}
+                selectedCustomTagId={selectedCustomTagId}
+                note={note}
+                onTagChange={handleTagChange}
+                onNoteChange={setNote}
+                required={true}
+              />
+              {tagError && (
+                <div className="flex items-center gap-1 mt-2 text-xs text-red-500">
+                  <AlertTriangle size={12} />
+                  Please select a strategy tag before placing bet
+                </div>
+              )}
             </div>
 
             {/* Confirm Button */}
@@ -266,14 +320,14 @@ export function BettingInterface({
               disabled={!canBet}
               className="w-full py-4 rounded-2xl font-bold text-black disabled:opacity-50"
               style={{
-                background: '#ffc107',
+                background: 'var(--theme-primary, #ffc107)',
               }}
             >
-              အတည်ပြုမည်
+              Confirm Bet
             </button>
           </div>
         </>
       )}
     </div>
   );
-}
+                  }
