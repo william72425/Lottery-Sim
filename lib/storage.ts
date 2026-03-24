@@ -12,70 +12,6 @@ export const STORAGE_KEYS = {
   SOUND_ENABLED: 'trx_sound_enabled',
 };
 
-// Bet Tag Types
-export type BetTag = 
-  | 'trend_follow' 
-  | 'trend_reverse' 
-  | 'zig_zag' 
-  | 'mindset'
-  | null;
-
-export interface Bet {
-  id: string;
-  period: string;
-  val: string;
-  amt: number;
-  status: 'wait' | 'win' | 'lost';
-  createdAt: string;
-  resultNumber?: number;
-  tag?: BetTag;        // New: tag for analysis
-  note?: string;       // New: optional note
-}
-
-export function addBet(bet: Omit<Bet, 'id' | 'createdAt' | 'tag' | 'note'>): Bet {
-  const bets = getBets();
-  const now = new Date();
-  
-  const newBet: Bet = {
-    ...bet,
-    id: `bet_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-    createdAt: now.toISOString(),
-    tag: null,
-    note: '',
-  };
-  bets.unshift(newBet);
-  localStorage.setItem(STORAGE_KEYS.BETS, JSON.stringify(bets));
-  return newBet;
-}
-
-// Update bet tag
-export function updateBetTag(betId: string, tag: BetTag): void {
-  const bets = getBets();
-  const index = bets.findIndex((b) => b.id === betId);
-  if (index !== -1) {
-    bets[index] = { ...bets[index], tag };
-    localStorage.setItem(STORAGE_KEYS.BETS, JSON.stringify(bets));
-  }
-}
-
-// Update bet note
-export function updateBetNote(betId: string, note: string): void {
-  const bets = getBets();
-  const index = bets.findIndex((b) => b.id === betId);
-  if (index !== -1) {
-    bets[index] = { ...bets[index], note };
-    localStorage.setItem(STORAGE_KEYS.BETS, JSON.stringify(bets));
-  }
-}
-
-// Get bets with specific tag
-export function getBetsByTag(tag: BetTag): Bet[] {
-  const bets = getBets();
-  return bets.filter(bet => bet.tag === tag);
-}
-
-// ... (rest of the file remains the same)
-
 // Initialize default values
 export function initializeStorage() {
   if (typeof window === 'undefined') return;
@@ -345,4 +281,4 @@ export function isSoundEnabled(): boolean {
 export function setSoundEnabled(enabled: boolean): void {
   if (typeof window === 'undefined') return;
   localStorage.setItem(STORAGE_KEYS.SOUND_ENABLED, enabled.toString());
-    }
+}
