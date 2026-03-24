@@ -112,16 +112,14 @@ function getDateKey(dateString: string): string {
 function sortResultsNewestFirst(results: any[]): any[] {
   if (!results || results.length === 0) return results;
   return [...results].sort((a, b) => {
-    // String comparison works correctly for same-length numeric strings
     if (a.issueNumber.length === b.issueNumber.length) {
       return b.issueNumber.localeCompare(a.issueNumber);
     }
-    // Different lengths: longer number is bigger
     return b.issueNumber.length - a.issueNumber.length;
   });
 }
 
-// Compute VIP stats from a total bet amount (pure, no setState)
+// Compute VIP stats from a total bet amount
 function computeVIPStats(total: number) {
   let level: VIPLevel = 'Bronze';
   if (total >= VIP_LEVELS.Platinum.min) level = 'Platinum';
@@ -161,20 +159,17 @@ export default function Home() {
   const [progressPercentage, setProgressPercentage] = useState(0);
   const [earnedBadges, setEarnedBadges] = useState<BadgeKey[]>([]);
 
-  // Stable refs — avoids stale closure issues without recreating callbacks
+  // Stable refs
   const lastCheckedPeriodRef = useRef('');
   const earnedBadgesRef = useRef<BadgeKey[]>([]);
 
-  // Keep ref in sync with state (no extra render)
   earnedBadgesRef.current = earnedBadges;
 
-  // ─── Stable: refresh wallet + bets only ───────────────────────────────────
   const refreshWalletAndBets = useCallback(() => {
     setWalletState(getWallet());
     setBets(getBets());
   }, []);
 
-  // ─── Stable: update VIP stats (reads from storage, updates state) ─────────
   const updateVIPStats = useCallback(() => {
     const allBets = getBets();
     const total = allBets.reduce((sum, bet) => sum + (Number(bet.amt) || 0), 0);
@@ -185,7 +180,6 @@ export default function Home() {
     setProgressPercentage(progress);
   }, []);
 
-  // ─── Stable: update badges (uses ref for current earned badges) ───────────
   const updateBadges = useCallback(() => {
     const currentBets = getBets();
     if (currentBets.length === 0) return;
@@ -250,7 +244,6 @@ export default function Home() {
     }
   }, []);
 
-  // ─── Stable: sync results from API ───────────────────────────────────────
   const syncData = useCallback(async () => {
     try {
       const results = await fetchGameResults();
@@ -292,11 +285,10 @@ export default function Home() {
         }
       }
     } catch (error) {
-      // silent — network errors are expected occasionally
+      // silent
     }
   }, [refreshWalletAndBets]);
 
-  // ─── Mount: initialize storage, load data once ────────────────────────────
   useEffect(() => {
     initializeStorage();
     refreshWalletAndBets();
@@ -311,22 +303,17 @@ export default function Home() {
         setEarnedBadges(parsed);
       } catch (_) {}
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // intentionally empty — run once on mount
+  }, []);
 
-  // ─── Initial API sync on mount ────────────────────────────────────────────
   useEffect(() => {
     syncData();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // intentionally empty — run once on mount
+  }, []);
 
-  // ─── Countdown + tick sound for last 10 seconds ───────────────────────────
   useEffect(() => {
     const timerInterval = setInterval(() => {
       const { countdown: cd, isLocked: locked } = getCurrentPeriodTime();
       setCountdown(cd);
       setIsLocked(locked);
-      // Play a tick sound every second when 10 or fewer seconds remain
       if (cd <= 10 && cd > 0) {
         playTickSound(cd);
       }
@@ -341,16 +328,14 @@ export default function Home() {
     return () => clearInterval(syncInterval);
   }, [syncData]);
 
-  // ─── VIP stats: update every 5 minutes ────────────────────────────────────
   useEffect(() => {
     const vipInterval = setInterval(() => {
       updateVIPStats();
       updateBadges();
-    }, 5 * 60 * 1000); // 5 minutes
+    }, 5 * 60 * 1000);
     return () => clearInterval(vipInterval);
   }, [updateVIPStats, updateBadges]);
 
-  // ─── Listen for storage changes (cross-tab) ───────────────────────────────
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === 'bets' || e.key === 'wallet') {
@@ -361,18 +346,15 @@ export default function Home() {
     return () => window.removeEventListener('storage', handleStorageChange);
   }, [refreshWalletAndBets]);
 
-  // ─── Listen for betPlaced event ───────────────────────────────────────────
   useEffect(() => {
     const handleBetPlaced = () => {
       refreshWalletAndBets();
-      // Also update VIP immediately when a bet is placed
       updateVIPStats();
     };
     window.addEventListener('betPlaced', handleBetPlaced);
     return () => window.removeEventListener('betPlaced', handleBetPlaced);
   }, [refreshWalletAndBets, updateVIPStats]);
 
-  // Handler for when a bet is placed
   const handleBetPlaced = () => {
     setTimeout(() => {
       refreshWalletAndBets();
@@ -381,7 +363,6 @@ export default function Home() {
     }, 50);
   };
 
-  // Handler for deposit/withdraw
   const handleBalanceUpdate = (newBalance: number) => {
     setWalletState(newBalance);
     setWallet(newBalance);
@@ -391,7 +372,10 @@ export default function Home() {
   return (
     <main
       className="min-h-screen pb-20"
-      style={{ background: '#090b0d', color: '#fff' }}
+      style={{ 
+        background: 'var(--theme-bg, #090b0d)', 
+        color: 'var(--theme-fg, #fff)' 
+      }}
     >
       <Header
         walletBalance={wallet}
@@ -406,19 +390,19 @@ export default function Home() {
         <Card
           className="p-6 mb-6 border"
           style={{
-            background: 'linear-gradient(135deg, #1e2329, #111)',
-            borderColor: '#ffc107',
+            background: 'linear-gradient(135deg, var(--theme-card-bg, #1e2329), var(--theme-bg-secondary, #111))',
+            borderColor: 'var(--theme-primary, #ffc107)',
             borderBottomWidth: '4px',
           }}
         >
           <div className="text-center">
             <div
               className="text-5xl font-black"
-              style={{ color: '#ffc107' }}
+              style={{ color: 'var(--theme-primary, #ffc107)' }}
             >
               {wallet.toLocaleString()}
             </div>
-            <div className="text-xs mt-2" style={{ color: '#666' }}>
+            <div className="text-xs mt-2" style={{ color: 'var(--theme-fg-muted, #666)' }}>
               Balance (MMK)
             </div>
           </div>
@@ -428,48 +412,48 @@ export default function Home() {
         <Tabs defaultValue="game" className="w-full">
           <TabsList
             className="grid w-full grid-cols-4 mb-6"
-            style={{ background: '#1e2329' }}
+            style={{ background: 'var(--theme-card-bg, #1e2329)' }}
           >
             <TabsTrigger
               value="game"
-              className="text-white"
               style={{
                 borderRadius: '10px',
                 backgroundColor: 'transparent',
                 fontSize: '12px',
+                color: 'var(--theme-fg, #fff)',
               }}
             >
               Betting
             </TabsTrigger>
             <TabsTrigger
               value="results"
-              className="text-white"
               style={{
                 borderRadius: '10px',
                 backgroundColor: 'transparent',
                 fontSize: '12px',
+                color: 'var(--theme-fg, #fff)',
               }}
             >
               Results
             </TabsTrigger>
             <TabsTrigger
               value="history"
-              className="text-white"
               style={{
                 borderRadius: '10px',
                 backgroundColor: 'transparent',
                 fontSize: '12px',
+                color: 'var(--theme-fg, #fff)',
               }}
             >
               History
             </TabsTrigger>
             <TabsTrigger
               value="profile"
-              className="text-white"
               style={{
                 borderRadius: '10px',
                 backgroundColor: 'transparent',
                 fontSize: '12px',
+                color: 'var(--theme-fg, #fff)',
               }}
             >
               Profile
@@ -488,7 +472,7 @@ export default function Home() {
             <div className="mt-8">
               <h3
                 className="text-sm font-bold mb-4"
-                style={{ color: '#ffc107' }}
+                style={{ color: 'var(--theme-primary, #ffc107)' }}
               >
                 My Bets
               </h3>
@@ -512,49 +496,55 @@ export default function Home() {
           <TabsContent value="profile">
             <div className="mt-4 space-y-6">
               {/* VIP Section */}
-              <Card className="p-5 border border-gray-800" style={{ background: '#111' }}>
+              <Card 
+                className="p-5 border" 
+                style={{ 
+                  background: 'var(--theme-card-bg, #111)', 
+                  borderColor: 'var(--theme-card-border, #333)' 
+                }}
+              >
                 <div className="flex items-center gap-2 mb-4">
-                  <Crown className="w-5 h-5" style={{ color: '#ffc107' }} />
-                  <h3 className="text-lg font-bold text-white">VIP Status</h3>
+                  <Crown className="w-5 h-5" style={{ color: 'var(--theme-primary, #ffc107)' }} />
+                  <h3 className="text-lg font-bold" style={{ color: 'var(--theme-fg, #fff)' }}>VIP Status</h3>
                 </div>
 
                 <div className="mb-4">
                   <div className="flex justify-between items-center mb-1">
-                    <span className="text-sm text-gray-300">Current Level</span>
+                    <span className="text-sm" style={{ color: 'var(--theme-fg-muted, #aaa)' }}>Current Level</span>
                     <span className="text-xl font-bold" style={{ color: VIP_LEVELS[vipLevel].color }}>
                       {vipLevel}
                     </span>
                   </div>
-                  <div className="w-full bg-gray-800 rounded-full h-2.5 mb-2">
+                  <div className="w-full rounded-full h-2.5 mb-2" style={{ background: 'var(--theme-bg-secondary, #333)' }}>
                     <div
                       className="h-2.5 rounded-full transition-all duration-300"
-                      style={{ width: `${progressPercentage}%`, backgroundColor: '#ffc107' }}
+                      style={{ width: `${progressPercentage}%`, backgroundColor: 'var(--theme-primary, #ffc107)' }}
                     />
                   </div>
                   {nextLevelRequirement && totalBetAmount < nextLevelRequirement && (
-                    <p className="text-xs text-gray-300">
+                    <p className="text-xs" style={{ color: 'var(--theme-fg-muted, #aaa)' }}>
                       Need {(nextLevelRequirement - totalBetAmount).toLocaleString()} more MMK to reach next level
                     </p>
                   )}
                   {!nextLevelRequirement && totalBetAmount > 0 && (
-                    <p className="text-xs text-yellow-500">Maximum level reached!</p>
+                    <p className="text-xs" style={{ color: 'var(--theme-primary, #ffc107)' }}>Maximum level reached!</p>
                   )}
                   {totalBetAmount === 0 && (
-                    <p className="text-xs text-gray-400">Place your first bet to start your VIP journey!</p>
+                    <p className="text-xs" style={{ color: 'var(--theme-fg-muted, #aaa)' }}>Place your first bet to start your VIP journey!</p>
                   )}
                 </div>
 
-                <div className="text-sm text-gray-300 mb-2">Total Bet Amount:</div>
-                <div className="text-2xl font-mono mb-4 text-white">
+                <div className="text-sm mb-2" style={{ color: 'var(--theme-fg-muted, #aaa)' }}>Total Bet Amount:</div>
+                <div className="text-2xl font-mono mb-4" style={{ color: 'var(--theme-fg, #fff)' }}>
                   {totalBetAmount.toLocaleString()} MMK
                 </div>
 
-                <div className="border-t border-gray-800 pt-4">
-                  <h4 className="text-sm font-semibold mb-2 text-gray-300">VIP Perks:</h4>
+                <div className="border-t pt-4" style={{ borderColor: 'var(--theme-card-border, #333)' }}>
+                  <h4 className="text-sm font-semibold mb-2" style={{ color: 'var(--theme-fg-muted, #aaa)' }}>VIP Perks:</h4>
                   <ul className="space-y-1">
                     {VIP_LEVELS[vipLevel].perks.map((perk, idx) => (
-                      <li key={idx} className="flex items-center gap-2 text-sm text-gray-200">
-                        <ChevronRight className="w-4 h-4" style={{ color: '#ffc107' }} />
+                      <li key={idx} className="flex items-center gap-2 text-sm" style={{ color: 'var(--theme-fg, #ddd)' }}>
+                        <ChevronRight className="w-4 h-4" style={{ color: 'var(--theme-primary, #ffc107)' }} />
                         <span>{perk}</span>
                       </li>
                     ))}
@@ -563,10 +553,16 @@ export default function Home() {
               </Card>
 
               {/* Badges Section */}
-              <Card className="p-5 border border-gray-800" style={{ background: '#111' }}>
+              <Card 
+                className="p-5 border" 
+                style={{ 
+                  background: 'var(--theme-card-bg, #111)', 
+                  borderColor: 'var(--theme-card-border, #333)' 
+                }}
+              >
                 <div className="flex items-center gap-2 mb-4">
-                  <Award className="w-5 h-5" style={{ color: '#ffc107' }} />
-                  <h3 className="text-lg font-bold text-white">Achievements</h3>
+                  <Award className="w-5 h-5" style={{ color: 'var(--theme-primary, #ffc107)' }} />
+                  <h3 className="text-lg font-bold" style={{ color: 'var(--theme-fg, #fff)' }}>Achievements</h3>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
@@ -576,16 +572,19 @@ export default function Home() {
                       <div
                         key={badge.key}
                         className={`p-3 rounded-lg flex items-center gap-3 transition-all ${
-                          isEarned ? 'bg-gray-800/50' : 'bg-gray-900 opacity-60'
+                          isEarned ? '' : 'opacity-60'
                         }`}
-                        style={{ borderLeft: `3px solid ${isEarned ? badge.color : '#444'}` }}
+                        style={{ 
+                          background: isEarned ? 'var(--theme-bg-secondary, #2a2a2a)' : 'var(--theme-bg-secondary, #1a1a1a)',
+                          borderLeft: `3px solid ${isEarned ? badge.color : '#444'}`
+                        }}
                       >
                         <div className={isEarned ? 'text-yellow-400' : 'text-gray-600'}>
                           {badge.icon}
                         </div>
                         <div className="flex-1">
-                          <div className="text-sm font-semibold text-white">{badge.name}</div>
-                          <div className="text-xs text-gray-400">{badge.description}</div>
+                          <div className="text-sm font-semibold" style={{ color: 'var(--theme-fg, #fff)' }}>{badge.name}</div>
+                          <div className="text-xs" style={{ color: 'var(--theme-fg-muted, #aaa)' }}>{badge.description}</div>
                         </div>
                         {isEarned && (
                           <div className="text-yellow-400">
@@ -615,4 +614,4 @@ export default function Home() {
       />
     </main>
   );
-}
+                          }
