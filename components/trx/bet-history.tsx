@@ -2,9 +2,9 @@
 
 import { useMemo } from 'react';
 import { Bet } from '@/lib/storage';
-import { groupByDate, formatTime } from '@/lib/sound';
+import { formatTime } from '@/lib/sound';
 import { getBetStatusDisplay, getBetMultiplier } from '@/lib/trx-utils';
-import { getBetNote, getAllTags } from '@/lib/bet-notes';
+import { getBetNote, getAllTags, TagInfo } from '@/lib/bet-notes';
 import { Tag, Edit2 } from 'lucide-react';
 
 interface BetHistoryProps {
@@ -13,24 +13,45 @@ interface BetHistoryProps {
   onBetClick?: (bet: Bet) => void;
 }
 
+// Helper to format date
+function formatBetDate(dateStr: string): string {
+  const date = new Date(dateStr);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  
+  if (date.toDateString() === today.toDateString()) return 'Today';
+  if (date.toDateString() === yesterday.toDateString()) return 'Yesterday';
+  return `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()}`;
+}
+
 export function BetHistory({ bets, maxItems = 10, onBetClick }: BetHistoryProps) {
+  // Group bets by date
   const groupedBets = useMemo(() => {
-    return groupByDate(bets);
+    const grouped: Record<string, Bet[]> = {};
+    bets.forEach(bet => {
+      const dateKey = formatBetDate(bet.createdAt);
+      if (!grouped[dateKey]) grouped[dateKey] = [];
+      grouped[dateKey].push(bet);
+    });
+    return grouped;
   }, [bets]);
 
   const dateOrder = [
     'Today',
     'Yesterday',
     ...Object.keys(groupedBets).filter((d) => d !== 'Today' && d !== 'Yesterday'),
-  ].filter((date) => groupedBets[date]);
+  ].filter((date) => groupedBets[date]?.length > 0);
+
+  const allTags = getAllTags();
 
   if (bets.length === 0) {
     return (
       <div
         className="p-6 text-center rounded-lg"
         style={{
-          background: 'var(--theme-card-bg, #171c21)',
-          border: '1px solid var(--theme-border, #222)',
+          background: '#171c21',
+          border: '1px solid #222',
         }}
       >
         <div style={{ color: '#555', fontSize: '14px' }}>
@@ -73,16 +94,21 @@ export function BetHistory({ bets, maxItems = 10, onBetClick }: BetHistoryProps)
                 }
 
                 const betNote = getBetNote(bet.id);
-                const tagInfo = betNote ? (betNote.tag === 'custom' 
-                  ? getAllTags().find(t => t.id === betNote.customTagId)
-                  : getAllTags().find(t => t.id === betNote.tag)) : null;
+                let tagInfo: TagInfo | undefined;
+                if (betNote) {
+                  if (betNote.tag === 'custom') {
+                    tagInfo = allTags.find(t => t.id === betNote.customTagId);
+                  } else {
+                    tagInfo = allTags.find(t => t.id === betNote.tag);
+                  }
+                }
 
                 return (
                   <div
                     key={bet.id}
                     className="p-3 rounded-lg border cursor-pointer transition-all hover:opacity-80"
                     style={{
-                      background: 'var(--theme-bg-secondary, #0f1419)',
+                      background: '#0f1419',
                       borderColor: '#1f252b',
                     }}
                     onClick={() => onBetClick?.(bet)}
@@ -97,6 +123,9 @@ export function BetHistory({ bets, maxItems = 10, onBetClick }: BetHistoryProps)
                           style={{ color: '#888' }}
                         >
                           #{bet.period}
+                        </div>
+                        <div className="text-[10px] mt-0.5" style={{ color: '#555' }}>
+                          {formatTime(bet.createdAt)}
                         </div>
                         {/* Tag Badge */}
                         {tagInfo && (
@@ -113,6 +142,7 @@ export function BetHistory({ bets, maxItems = 10, onBetClick }: BetHistoryProps)
                             {betNote?.note && (
                               <span className="opacity-70 ml-0.5" title={betNote.note}>📝</span>
                             )}
+                            <Edit2 size={8} className="opacity-50" />
                           </div>
                         )}
                       </div>
@@ -131,6 +161,11 @@ export function BetHistory({ bets, maxItems = 10, onBetClick }: BetHistoryProps)
                         >
                           {bet.status === 'win' ? 'WIN' : bet.status === 'lost' ? 'LOST' : 'WAIT'}
                         </div>
+                        {bet.amt && (
+                          <div className="text-[10px] mt-0.5" style={{ color: '#666' }}>
+                            {bet.amt.toLocaleString()} MMK
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -142,4 +177,4 @@ export function BetHistory({ bets, maxItems = 10, onBetClick }: BetHistoryProps)
       })}
     </div>
   );
-          }
+    }
