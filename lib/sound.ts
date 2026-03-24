@@ -1,4 +1,5 @@
 import { isSoundEnabled } from './storage';
+import { getDisplayDateFromPeriod } from './trx-utils';
 
 // Create Web Audio API sounds programmatically
 function playTone(frequency: number, duration: number, type: 'sine' | 'square' | 'triangle' = 'sine') {
@@ -28,25 +29,22 @@ function playTone(frequency: number, duration: number, type: 'sine' | 'square' |
 export function playWinSound() {
   if (!isSoundEnabled()) return;
 
-  // Celebratory ascending tones
-  setTimeout(() => playTone(523.25, 0.2), 0); // C5
-  setTimeout(() => playTone(659.25, 0.2), 150); // E5
-  setTimeout(() => playTone(783.99, 0.3), 300); // G5
+  setTimeout(() => playTone(523.25, 0.2), 0);
+  setTimeout(() => playTone(659.25, 0.2), 150);
+  setTimeout(() => playTone(783.99, 0.3), 300);
 }
 
 export function playLoseSound() {
   if (!isSoundEnabled()) return;
 
-  // Descending tones for lose
-  setTimeout(() => playTone(392, 0.2), 0); // G4
-  setTimeout(() => playTone(329.63, 0.2), 150); // E4
-  setTimeout(() => playTone(293.66, 0.3), 300); // D4
+  setTimeout(() => playTone(392, 0.2), 0);
+  setTimeout(() => playTone(329.63, 0.2), 150);
+  setTimeout(() => playTone(293.66, 0.3), 300);
 }
 
 export function playNotificationSound() {
   if (!isSoundEnabled()) return;
 
-  // Simple notification beep
   playTone(800, 0.15, 'square');
 }
 
@@ -54,15 +52,13 @@ export function playTickSound(secondsLeft: number) {
   if (!isSoundEnabled()) return;
 
   if (secondsLeft <= 3) {
-    // Last 3 seconds: sharp high-pitched urgent tick
     playTone(1200, 0.08, 'square');
   } else {
-    // 4–10 seconds: moderate tick
     playTone(880, 0.07, 'triangle');
   }
 }
 
-// Format time for display
+// Format time from ISO string (local time)
 export function formatTime(isoString: string): string {
   const date = new Date(isoString);
   const hours = String(date.getHours()).padStart(2, '0');
@@ -70,7 +66,12 @@ export function formatTime(isoString: string): string {
   return `${hours}:${minutes}`;
 }
 
-// Format date for display
+// Format date using period number (more accurate than createdAt)
+export function formatDateFromPeriod(period: string): string {
+  return getDisplayDateFromPeriod(period);
+}
+
+// Legacy formatDate function (kept for compatibility)
 export function formatDate(isoString: string): string {
   const date = new Date(isoString);
   const today = new Date();
@@ -91,7 +92,22 @@ export function formatDate(isoString: string): string {
   return `${day}.${month}.${year}`;
 }
 
-// Group bets by date
+// Group bets by date using period number
+export function groupByPeriodDate(bets: any[]): Record<string, any[]> {
+  const grouped: Record<string, any[]> = {};
+
+  bets.forEach((bet) => {
+    const date = formatDateFromPeriod(bet.period);
+    if (!grouped[date]) {
+      grouped[date] = [];
+    }
+    grouped[date].push(bet);
+  });
+
+  return grouped;
+}
+
+// Legacy groupByDate function (kept for compatibility)
 export function groupByDate(items: any[]): Record<string, any[]> {
   const grouped: Record<string, any[]> = {};
 
