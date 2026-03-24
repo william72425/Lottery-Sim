@@ -6,6 +6,7 @@ import {
   getNextPeriod,
   getCurrentPeriodTime,
   storeGameResults,
+  getCurrentPeriodForBet,
 } from '@/lib/trx-utils';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card } from '@/components/ui/card';
