@@ -34,7 +34,6 @@ export function initializeStorage() {
   if (!localStorage.getItem(STORAGE_KEYS.SOUND_ENABLED)) {
     localStorage.setItem(STORAGE_KEYS.SOUND_ENABLED, 'true');
   }
-  // Initialize empty results storage
   if (!localStorage.getItem('trx_results')) {
     localStorage.setItem('trx_results', '[]');
   }
@@ -63,7 +62,7 @@ export function deductFromWallet(amount: number): boolean {
   return true;
 }
 
-// Fund Operations (Account Balance)
+// Fund Operations
 export function getFund(): number {
   if (typeof window === 'undefined') return 0;
   return parseFloat(localStorage.getItem(STORAGE_KEYS.FUND) || '0');
@@ -103,20 +102,24 @@ export function getFundEditCountdown(): { canEdit: boolean; daysRemaining: numbe
 // Bet Operations
 export interface Bet {
   id: string;
-  period: string;        // API period number (e.g., "20260324001")
-  val: string;           // GREEN, RED, VIOLET, BIG, SMALL, or number
+  period: string;
+  val: string;
   amt: number;
   status: 'wait' | 'win' | 'lost';
-  createdAt: string;     // ISO string of bet placement time
+  createdAt: string;
   resultNumber?: number;
+}
+
+export function getBets(): Bet[] {
+  if (typeof window === 'undefined') return [];
+  const bets = localStorage.getItem(STORAGE_KEYS.BETS);
+  return bets ? JSON.parse(bets) : [];
 }
 
 export function addBet(bet: Omit<Bet, 'id' | 'createdAt'>): Bet {
   const bets = getBets();
   const now = new Date();
   
-  // Store bet with current local time in ISO format
-  // This will be Myanmar time because browser local time is Myanmar
   const newBet: Bet = {
     ...bet,
     id: `bet_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -169,7 +172,7 @@ export interface Deposit {
   amount: number;
   note: string;
   createdAt: string;
-  date: string; // YYYY-MM-DD
+  date: string;
 }
 
 export function getDeposits(): Deposit[] {
@@ -181,10 +184,9 @@ export function getDeposits(): Deposit[] {
 export function addDeposit(amount: number, note: string = ''): Deposit | null {
   if (typeof window === 'undefined') return null;
 
-  // Check fund account balance
   const fund = getFund();
   if (fund < amount) {
-    return null; // Insufficient fund balance
+    return null;
   }
 
   const today = new Date().toISOString().split('T')[0];
@@ -197,7 +199,7 @@ export function addDeposit(amount: number, note: string = ''): Deposit | null {
   }
 
   if (countToday >= 3) {
-    return null; // Max 3 deposits per day
+    return null;
   }
 
   const deposits = getDeposits();
@@ -213,7 +215,6 @@ export function addDeposit(amount: number, note: string = ''): Deposit | null {
   localStorage.setItem(STORAGE_KEYS.DEPOSITS, JSON.stringify(deposits));
   localStorage.setItem(STORAGE_KEYS.DEPOSIT_COUNT_TODAY, (countToday + 1).toString());
 
-  // Deduct from fund account and add to wallet
   setFund(fund - amount);
   addToWallet(amount);
 
@@ -239,7 +240,7 @@ export interface Withdrawal {
   id: string;
   amount: number;
   createdAt: string;
-  date: string; // YYYY-MM-DD
+  date: string;
 }
 
 export function getWithdrawals(): Withdrawal[] {
@@ -252,10 +253,8 @@ export function addWithdrawal(amount: number): Withdrawal | null {
   const wallet = getWallet();
   if (wallet < amount) return null;
 
-  // Deduct from game account (wallet)
   deductFromWallet(amount);
 
-  // Add the full withdrawn amount back to fund account
   const currentFund = getFund();
   setFund(currentFund + amount);
 
@@ -282,4 +281,4 @@ export function isSoundEnabled(): boolean {
 export function setSoundEnabled(enabled: boolean): void {
   if (typeof window === 'undefined') return;
   localStorage.setItem(STORAGE_KEYS.SOUND_ENABLED, enabled.toString());
-}
+    }
