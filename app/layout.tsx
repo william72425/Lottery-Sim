@@ -1,45 +1,29 @@
-import type { Metadata } from 'next'
-import { Geist, Geist_Mono } from 'next/font/google'
-import { Analytics } from '@vercel/analytics/next'
-import './globals.css'
+'use client';
+
+import type { Metadata } from 'next';
+import { Geist, Geist_Mono } from 'next/font/google';
+import { Analytics } from '@vercel/analytics/next';
+import { useEffect } from 'react';
+import './globals.css';
+import { applySavedTheme } from '@/lib/theme';
 
 const _geist = Geist({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
 
-export const metadata: Metadata = {
-  title: 'TRX WIN GO - Demo',
-  description: 'TRX WinGo Lottery Demo - Practice betting with real-time results',
-  generator: 'v0.app',
-  viewport: {
-    width: 'device-width',
-    initialScale: 1,
-    maximumScale: 1,
-    userScalable: false,
-  },
-  icons: {
-    icon: [
-      {
-        url: '/icon-light-32x32.png',
-        media: '(prefers-color-scheme: light)',
-      },
-      {
-        url: '/icon-dark-32x32.png',
-        media: '(prefers-color-scheme: dark)',
-      },
-      {
-        url: '/icon.svg',
-        type: 'image/svg+xml',
-      },
-    ],
-    apple: '/apple-icon.png',
-  },
-}
+// Metadata needs to be exported from a separate file or use generateMetadata
+// Since we're using 'use client', we'll keep metadata in a separate file or use next/head
+// For simplicity, we'll use a separate metadata file
 
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  // Apply saved theme on mount
+  useEffect(() => {
+    applySavedTheme();
+  }, []);
+
   return (
     <html lang="en">
       <body className="font-sans antialiased">
@@ -47,5 +31,5 @@ export default function RootLayout({
         <Analytics />
       </body>
     </html>
-  )
+  );
 }
