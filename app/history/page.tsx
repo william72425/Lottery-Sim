@@ -1,16 +1,16 @@
 'use client';
 
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   ArrowLeft, ChevronLeft, ChevronRight, Calendar as CalendarIcon, 
-  Filter, TrendingUp, TrendingDown, Tag, X, BarChart3, Edit2 
+  Filter, TrendingUp, TrendingDown, Tag, BarChart3, Edit2 
 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { getBets, getFund, Bet } from '@/lib/storage';
-import { getBetStatusDisplay, getBetMultiplier, getDisplayDateFromPeriod, getDateFromPeriod } from '@/lib/trx-utils';
-import { formatTime, groupByPeriodDate } from '@/lib/sound';
+import { getBetStatusDisplay, getBetMultiplier } from '@/lib/trx-utils';
+import { formatTime } from '@/lib/sound';
 import { Calendar } from '@/components/ui/calendar';
 import {
   Popover,
@@ -18,12 +18,20 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { BetTagModal } from '@/components/bet-tag-modal';
-import { TagType, TAGS, getBetNote, getBetNotes, getTagStats, BetNote, TagStats, getAllTags } from '@/lib/bet-notes';
+import { 
+  getBetNote, 
+  getBetNotes, 
+  getTagStats, 
+  BetNote, 
+  TagStats, 
+  getAllTags,
+  TagInfo
+} from '@/lib/bet-notes';
 
 const ITEMS_PER_PAGE = 10;
 
 type DateFilter = 'today' | 'yesterday' | 'thisWeek' | 'thisMonth' | 'custom';
-type TagFilter = 'all' | TagType | string;
+type TagFilter = 'all' | string;
 
 // Helper to check if a date is within a range
 function isDateInRange(date: Date, startDate: Date, endDate: Date): boolean {
@@ -68,6 +76,18 @@ function formatDateRange(start: Date, end: Date): string {
   const endStr = `${end.getDate()}/${end.getMonth() + 1}/${end.getFullYear()}`;
   if (startStr === endStr) return startStr;
   return `${startStr} - ${endStr}`;
+}
+
+// Format date from ISO string
+function formatBetDate(dateStr: string): string {
+  const date = new Date(dateStr);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  
+  if (date.toDateString() === today.toDateString()) return 'Today';
+  if (date.toDateString() === yesterday.toDateString()) return 'Yesterday';
+  return `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()}`;
 }
 
 // Streak Stats Interface
@@ -291,20 +311,11 @@ export default function HistoryPage() {
   // Calculate tag statistics
   const tagStats = useMemo(() => getTagStats(filteredBets, betNotes), [filteredBets, betNotes]);
 
-  // Group filtered bets by date
+  // Group filtered bets by date for display
   const groupedBets = useMemo(() => {
     const grouped: Record<string, Bet[]> = {};
     filteredBets.forEach(bet => {
-      const date = new Date(bet.createdAt);
-      const today = new Date();
-      const yesterday = new Date(today);
-      yesterday.setDate(yesterday.getDate() - 1);
-      
-      let dateKey = '';
-      if (date.toDateString() === today.toDateString()) dateKey = 'Today';
-      else if (date.toDateString() === yesterday.toDateString()) dateKey = 'Yesterday';
-      else dateKey = `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()}`;
-      
+      const dateKey = formatBetDate(bet.createdAt);
       if (!grouped[dateKey]) grouped[dateKey] = [];
       grouped[dateKey].push(bet);
     });
@@ -350,7 +361,7 @@ export default function HistoryPage() {
     setCustomEndDate(new Date());
   };
 
-  const handleBetTripleClick = (bet: Bet) => {
+  const handleBetDoubleClick = (bet: Bet) => {
     if (bet.status === 'win' || bet.status === 'lost') {
       setSelectedBetForTag(bet);
       setShowTagModal(true);
@@ -371,23 +382,23 @@ export default function HistoryPage() {
     <main
       className="min-h-screen pb-20"
       style={{ 
-        background: 'var(--theme-bg, #090b0d)', 
-        color: 'var(--theme-fg, #fff)' 
+        background: '#090b0d', 
+        color: '#fff' 
       }}
     >
       {/* Header */}
       <div
         className="sticky top-0 z-40 flex items-center gap-3 px-4 py-4 border-b"
         style={{
-          background: 'var(--theme-bg-secondary, #090b0d)',
-          borderColor: 'var(--theme-border, #222)',
+          background: '#090b0d',
+          borderColor: '#222',
         }}
       >
         <button
           onClick={() => router.back()}
           className="p-2 hover:opacity-80 transition-opacity"
         >
-          <ArrowLeft size={24} style={{ color: 'var(--theme-primary, #ffc107)' }} />
+          <ArrowLeft size={24} style={{ color: '#ffc107' }} />
         </button>
         <h1 className="text-xl font-bold">Game History</h1>
       </div>
@@ -399,19 +410,19 @@ export default function HistoryPage() {
         <Card
           className="p-3 border"
           style={{
-            background: 'var(--theme-card-bg, #1e2329)',
-            borderColor: 'var(--theme-border, #222)',
+            background: '#1e2329',
+            borderColor: '#222',
           }}
         >
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-1.5">
-              <Filter size={14} style={{ color: 'var(--theme-primary, #ffc107)' }} />
+              <Filter size={14} style={{ color: '#ffc107' }} />
               <span className="text-xs font-semibold">Filters</span>
             </div>
             <button
               onClick={resetFilter}
               className="text-xs px-2 py-0.5 rounded"
-              style={{ color: 'var(--theme-primary, #ffc107)', background: 'rgba(255, 193, 7, 0.1)' }}
+              style={{ color: '#ffc107', background: 'rgba(255, 193, 7, 0.1)' }}
             >
               Reset All
             </button>
@@ -427,8 +438,8 @@ export default function HistoryPage() {
                   dateFilter === filter ? 'text-black' : 'text-gray-400'
                 }`}
                 style={{
-                  background: dateFilter === filter ? 'var(--theme-primary, #ffc107)' : 'var(--theme-bg-secondary, #0f1419)',
-                  border: '1px solid var(--theme-border, #333)',
+                  background: dateFilter === filter ? '#ffc107' : '#0f1419',
+                  border: '1px solid #333',
                 }}
               >
                 {filter === 'today' ? 'Today' :
@@ -437,6 +448,7 @@ export default function HistoryPage() {
               </button>
             ))}
             
+            {/* Custom Date Picker */}
             <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
               <PopoverTrigger asChild>
                 <button
@@ -444,8 +456,8 @@ export default function HistoryPage() {
                     dateFilter === 'custom' ? 'text-black' : 'text-gray-400'
                   }`}
                   style={{
-                    background: dateFilter === 'custom' ? 'var(--theme-primary, #ffc107)' : 'var(--theme-bg-secondary, #0f1419)',
-                    border: '1px solid var(--theme-border, #333)',
+                    background: dateFilter === 'custom' ? '#ffc107' : '#0f1419',
+                    border: '1px solid #333',
                   }}
                 >
                   <CalendarIcon size={12} />
@@ -453,7 +465,7 @@ export default function HistoryPage() {
                 </button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
-                <div className="p-3" style={{ background: 'var(--theme-card-bg, #1e2329)', borderColor: 'var(--theme-border, #333)' }}>
+                <div className="p-3" style={{ background: '#1e2329', borderColor: '#333' }}>
                   <div className="mb-2 text-xs text-white">Select Date Range</div>
                   <Calendar
                     mode="range"
@@ -467,7 +479,7 @@ export default function HistoryPage() {
                   />
                   <div className="flex gap-2 mt-3">
                     <Button onClick={() => setCalendarOpen(false)} className="flex-1 py-1 text-xs" style={{ background: '#333', color: '#fff', height: '32px' }}>Cancel</Button>
-                    <Button onClick={handleCustomDateSelect} className="flex-1 py-1 text-xs" style={{ background: 'var(--theme-primary, #ffc107)', color: '#000', height: '32px' }}>Apply</Button>
+                    <Button onClick={handleCustomDateSelect} className="flex-1 py-1 text-xs" style={{ background: '#ffc107', color: '#000', height: '32px' }}>Apply</Button>
                   </div>
                 </div>
               </PopoverContent>
@@ -475,17 +487,17 @@ export default function HistoryPage() {
           </div>
 
           {/* Tag Filter */}
-          <div className="flex items-center gap-2 mt-2 pt-2 border-t" style={{ borderColor: 'var(--theme-border, #333)' }}>
-            <Tag size={12} style={{ color: 'var(--theme-primary, #ffc107)' }} />
+          <div className="flex items-center gap-2 mt-2 pt-2 border-t" style={{ borderColor: '#333' }}>
+            <Tag size={12} style={{ color: '#ffc107' }} />
             <span className="text-xs text-gray-400">Tag:</span>
             <select
               value={tagFilter}
-              onChange={(e) => setTagFilter(e.target.value as TagFilter)}
+              onChange={(e) => setTagFilter(e.target.value)}
               className="text-xs rounded px-2 py-1 flex-1"
               style={{
-                background: 'var(--theme-bg-secondary, #0f1419)',
-                border: '1px solid var(--theme-border, #333)',
-                color: 'var(--theme-fg, #fff)',
+                background: '#0f1419',
+                border: '1px solid #333',
+                color: '#fff',
               }}
             >
               <option value="all">All Bets</option>
@@ -498,9 +510,9 @@ export default function HistoryPage() {
               onClick={() => setShowTagDashboard(!showTagDashboard)}
               className="flex items-center gap-1 text-xs px-2 py-1 rounded"
               style={{
-                background: showTagDashboard ? 'var(--theme-primary, #ffc107)' : 'var(--theme-bg-secondary, #0f1419)',
-                color: showTagDashboard ? '#000' : 'var(--theme-fg-muted, #888)',
-                border: '1px solid var(--theme-border, #333)',
+                background: showTagDashboard ? '#ffc107' : '#0f1419',
+                color: showTagDashboard ? '#000' : '#888',
+                border: '1px solid #333',
               }}
             >
               <BarChart3 size={12} />
@@ -514,12 +526,12 @@ export default function HistoryPage() {
           <Card
             className="p-3 border"
             style={{
-              background: 'var(--theme-card-bg, #1e2329)',
-              borderColor: 'var(--theme-border, #222)',
+              background: '#1e2329',
+              borderColor: '#222',
             }}
           >
             <div className="flex items-center gap-2 mb-2">
-              <BarChart3 size={14} style={{ color: 'var(--theme-primary, #ffc107)' }} />
+              <BarChart3 size={14} style={{ color: '#ffc107' }} />
               <span className="text-xs font-semibold">Tag Performance</span>
             </div>
             <div className="space-y-2">
@@ -577,11 +589,11 @@ export default function HistoryPage() {
 
             {/* Row 1: Basic Stats */}
             <div className="grid grid-cols-2 gap-2">
-              <Card className="p-2 border" style={{ background: 'var(--theme-card-bg, #1e2329)', borderColor: 'var(--theme-border, #222)' }}>
+              <Card className="p-2 border" style={{ background: '#1e2329', borderColor: '#222' }}>
                 <div className="text-[10px] text-gray-400">Played</div>
                 <div className="text-lg font-bold text-white">{stats.totalMatches}</div>
               </Card>
-              <Card className="p-2 border" style={{ background: 'var(--theme-card-bg, #1e2329)', borderColor: 'var(--theme-border, #222)' }}>
+              <Card className="p-2 border" style={{ background: '#1e2329', borderColor: '#222' }}>
                 <div className="text-[10px] text-gray-400">Total Bet</div>
                 <div className="text-lg font-bold text-white">{stats.totalBetAmount.toLocaleString()}</div>
               </Card>
@@ -668,19 +680,24 @@ export default function HistoryPage() {
                 }
 
                 const betNote = betNotes.find(n => n.betId === bet.id);
-                const tagInfo = betNote ? (betNote.tag === 'custom' 
-                  ? getAllTags().find(t => t.id === betNote.customTagId)
-                  : getAllTags().find(t => t.id === betNote.tag)) : null;
+                let tagInfo: TagInfo | undefined;
+                if (betNote) {
+                  if (betNote.tag === 'custom') {
+                    tagInfo = allTagsList.find(t => t.id === betNote.customTagId);
+                  } else {
+                    tagInfo = allTagsList.find(t => t.id === betNote.tag);
+                  }
+                }
 
                 return (
                   <Card
                     key={bet.id}
                     className="p-2 border cursor-pointer transition-all hover:opacity-80"
                     style={{
-                      background: 'var(--theme-card-bg, #1e2329)',
-                      borderColor: 'var(--theme-border, #222)',
+                      background: '#1e2329',
+                      borderColor: '#222',
                     }}
-                    onDoubleClick={() => handleBetTripleClick(bet)}
+                    onDoubleClick={() => handleBetDoubleClick(bet)}
                     title="Double-click to add/edit tag and note"
                   >
                     <div className="flex items-center justify-between gap-2">
@@ -738,7 +755,7 @@ export default function HistoryPage() {
                   disabled={currentPage === 0}
                   className="flex items-center gap-1 px-3 py-1 text-xs disabled:opacity-50"
                   style={{
-                    background: 'var(--theme-primary, #ffc107)',
+                    background: '#ffc107',
                     color: '#000',
                     height: '32px',
                   }}
@@ -748,7 +765,7 @@ export default function HistoryPage() {
                 </Button>
 
                 <div className="flex-1 text-center">
-                  <span className="text-xs font-bold" style={{ color: 'var(--theme-primary, #ffc107)' }}>
+                  <span className="text-xs font-bold" style={{ color: '#ffc107' }}>
                     {currentPage + 1} / {totalPages}
                   </span>
                 </div>
@@ -758,7 +775,7 @@ export default function HistoryPage() {
                   disabled={currentPage === totalPages - 1}
                   className="flex items-center gap-1 px-3 py-1 text-xs disabled:opacity-50"
                   style={{
-                    background: 'var(--theme-primary, #ffc107)',
+                    background: '#ffc107',
                     color: '#000',
                     height: '32px',
                   }}
