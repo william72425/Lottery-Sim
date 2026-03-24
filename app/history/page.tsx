@@ -1,23 +1,29 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Filter, TrendingUp, TrendingDown } from 'lucide-react';
+import { 
+  ArrowLeft, ChevronLeft, ChevronRight, Calendar as CalendarIcon, 
+  Filter, TrendingUp, TrendingDown, Tag, X, BarChart3, Edit2 
+} from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { getBets, getFund, Bet } from '@/lib/storage';
-import { getBetStatusDisplay, getBetMultiplier } from '@/lib/trx-utils';
-import { formatDate, formatTime, groupByDate } from '@/lib/sound';
+import { getBetStatusDisplay, getBetMultiplier, getDisplayDateFromPeriod, getDateFromPeriod } from '@/lib/trx-utils';
+import { formatTime, groupByPeriodDate } from '@/lib/sound';
 import { Calendar } from '@/components/ui/calendar';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
+import { BetTagModal } from '@/components/bet-tag-modal';
+import { TagType, TAGS, getBetNote, getBetNotes, getTagStats, BetNote, TagStats, getAllTags } from '@/lib/bet-notes';
 
 const ITEMS_PER_PAGE = 10;
 
 type DateFilter = 'today' | 'yesterday' | 'thisWeek' | 'thisMonth' | 'custom';
+type TagFilter = 'all' | TagType | string;
 
 // Helper to check if a date is within a range
 function isDateInRange(date: Date, startDate: Date, endDate: Date): boolean {
@@ -64,16 +70,6 @@ function formatDateRange(start: Date, end: Date): string {
   return `${startStr} - ${endStr}`;
 }
 
-// Helper to get period number from issue number (e.g., "20260323001" -> 1)
-function getPeriodNumber(issueNumber: string): number {
-  // Extract the last digits - assuming format like YYYYMMDDXXX
-  const match = issueNumber.match(/(\d+)$/);
-  if (match) {
-    return parseInt(match[1], 10);
-  }
-  return 0;
-}
-
 // Streak Stats Interface
 interface StreakStats {
   highestWinStreak: number;
@@ -87,7 +83,6 @@ interface StreakStats {
 }
 
 // Calculate streak information based on TIME (minutes) difference
-// If gap between consecutive bets > 4 minutes, streak breaks
 function calculateStreakStats(bets: Bet[]): StreakStats {
   if (bets.length === 0) {
     return {
@@ -102,7 +97,6 @@ function calculateStreakStats(bets: Bet[]): StreakStats {
     };
   }
 
-  // Sort bets by createdAt (oldest first for streak calculation)
   const sortedBets = [...bets].sort((a, b) => 
     new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
   );
@@ -120,7 +114,6 @@ function calculateStreakStats(bets: Bet[]): StreakStats {
   let loseStreak4x = 0;
   let loseStreak5x = 0;
 
-  // Function to record a completed streak
   const recordStreak = (streak: number, type: 'win' | 'lose') => {
     if (type === 'win') {
       if (streak >= 3) winStreak3x++;
@@ -142,48 +135,35 @@ function calculateStreakStats(bets: Bet[]): StreakStats {
     const isWait = bet.status === 'wait';
     const currentBetTime = new Date(bet.createdAt);
 
-    // Skip waiting bets (not yet resolved)
-    if (isWait) {
-      continue;
-    }
+    if (isWait) continue;
 
-    // Check time gap since last bet
     let timeGapMinutes = 0;
     if (lastBetTime) {
       timeGapMinutes = (currentBetTime.getTime() - lastBetTime.getTime()) / (1000 * 60);
     }
 
     const currentType = isWin ? 'win' : 'lose';
-
-    // Check if time gap breaks the streak (> 4 minutes gap)
     const isStreakBrokenByTime = lastBetTime !== null && timeGapMinutes > 4;
 
     if (isStreakBrokenByTime) {
-      // Time gap > 4 minutes: streak breaks
       if (currentStreak > 0 && currentStreakType) {
         recordStreak(currentStreak, currentStreakType);
       }
-      // Start new streak with current bet
       currentStreak = 1;
       currentStreakType = currentType;
       lastBetTime = currentBetTime;
       continue;
     }
 
-    // No time break - check streak continuity
     if (currentStreakType === null) {
-      // First bet
       currentStreak = 1;
       currentStreakType = currentType;
     } else if (currentStreakType === currentType) {
-      // Same streak continues
       currentStreak++;
     } else {
-      // Different type - streak ends, record it
       if (currentStreak > 0) {
         recordStreak(currentStreak, currentStreakType);
       }
-      // Start new streak with current bet
       currentStreak = 1;
       currentStreakType = currentType;
     }
@@ -191,7 +171,6 @@ function calculateStreakStats(bets: Bet[]): StreakStats {
     lastBetTime = currentBetTime;
   }
 
-  // Record the final streak
   if (currentStreak > 0 && currentStreakType) {
     recordStreak(currentStreak, currentStreakType);
   }
@@ -218,18 +197,22 @@ export default function HistoryPage() {
   const [customEndDate, setCustomEndDate] = useState<Date | undefined>(new Date());
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [initialFund, setInitialFund] = useState(0);
+  const [betNotes, setBetNotes] = useState<BetNote[]>([]);
+  const [tagFilter, setTagFilter] = useState<TagFilter>('all');
+  const [selectedBetForTag, setSelectedBetForTag] = useState<Bet | null>(null);
+  const [showTagModal, setShowTagModal] = useState(false);
+  const [showTagDashboard, setShowTagDashboard] = useState(false);
 
   // Load all bets and initial fund
   useEffect(() => {
     const bets = getBets();
     setAllBets(bets);
-    
-    // Get the initial fund amount (the amount user set at the beginning of the month)
+    setBetNotes(getBetNotes());
     const fund = getFund();
     setInitialFund(fund);
   }, []);
 
-  // Apply filter when filter changes
+  // Apply filters
   useEffect(() => {
     const range = getDateRange(dateFilter, customStartDate, customEndDate);
     if (!range) {
@@ -237,14 +220,28 @@ export default function HistoryPage() {
       return;
     }
 
-    const filtered = allBets.filter(bet => {
+    let filtered = allBets.filter(bet => {
       const betDate = new Date(bet.createdAt);
       return isDateInRange(betDate, range.start, range.end);
     });
+
+    // Apply tag filter
+    if (tagFilter !== 'all') {
+      filtered = filtered.filter(bet => {
+        const note = betNotes.find(n => n.betId === bet.id);
+        if (note) {
+          if (note.tag === 'custom') {
+            return note.customTagId === tagFilter;
+          }
+          return note.tag === tagFilter;
+        }
+        return false;
+      });
+    }
     
     setFilteredBets(filtered);
     setCurrentPage(0);
-  }, [allBets, dateFilter, customStartDate, customEndDate]);
+  }, [allBets, dateFilter, customStartDate, customEndDate, tagFilter, betNotes]);
 
   // Calculate statistics
   const stats = useMemo(() => {
@@ -271,8 +268,6 @@ export default function HistoryPage() {
     const netProfit = totalWinAmount - totalLostAmount;
     const winRate = totalMatches > 0 ? (winMatches / totalMatches) * 100 : 0;
     const lostRate = totalMatches > 0 ? (lostMatches / totalMatches) * 100 : 0;
-    
-    // Calculate profit percentage based on INITIAL FUND (not current fund)
     const profitPercentage = initialFund > 0 ? (netProfit / initialFund) * 100 : 0;
 
     return {
@@ -290,17 +285,31 @@ export default function HistoryPage() {
     };
   }, [filteredBets, initialFund]);
 
-  // Calculate streak statistics (based on time)
+  // Calculate streak statistics
   const streakStats = useMemo(() => calculateStreakStats(filteredBets), [filteredBets]);
+
+  // Calculate tag statistics
+  const tagStats = useMemo(() => getTagStats(filteredBets, betNotes), [filteredBets, betNotes]);
 
   // Group filtered bets by date
   const groupedBets = useMemo(() => {
-    const grouped = groupByDate(filteredBets);
-    const dateOrder = [
-      'Today',
-      'Yesterday',
-      ...Object.keys(grouped).filter(d => d !== 'Today' && d !== 'Yesterday'),
-    ].filter(date => grouped[date]);
+    const grouped: Record<string, Bet[]> = {};
+    filteredBets.forEach(bet => {
+      const date = new Date(bet.createdAt);
+      const today = new Date();
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      
+      let dateKey = '';
+      if (date.toDateString() === today.toDateString()) dateKey = 'Today';
+      else if (date.toDateString() === yesterday.toDateString()) dateKey = 'Yesterday';
+      else dateKey = `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()}`;
+      
+      if (!grouped[dateKey]) grouped[dateKey] = [];
+      grouped[dateKey].push(bet);
+    });
+    
+    const dateOrder = ['Today', 'Yesterday', ...Object.keys(grouped).filter(d => d !== 'Today' && d !== 'Yesterday')];
     return { grouped, dateOrder };
   }, [filteredBets]);
 
@@ -308,7 +317,7 @@ export default function HistoryPage() {
   const flattenedBets = useMemo(() => {
     const result: (Bet & { date: string })[] = [];
     groupedBets.dateOrder.forEach(date => {
-      groupedBets.grouped[date].forEach(bet => {
+      groupedBets.grouped[date]?.forEach(bet => {
         result.push({ ...bet, date });
       });
     });
@@ -336,31 +345,49 @@ export default function HistoryPage() {
 
   const resetFilter = () => {
     setDateFilter('today');
+    setTagFilter('all');
     setCustomStartDate(new Date());
     setCustomEndDate(new Date());
+  };
+
+  const handleBetTripleClick = (bet: Bet) => {
+    if (bet.status === 'win' || bet.status === 'lost') {
+      setSelectedBetForTag(bet);
+      setShowTagModal(true);
+    }
+  };
+
+  const refreshNotes = () => {
+    setBetNotes(getBetNotes());
   };
 
   const currentRange = getDateRange(dateFilter, customStartDate, customEndDate);
   const rangeDisplay = currentRange ? formatDateRange(currentRange.start, currentRange.end) : 'Select date range';
 
+  // Get all tags for filter dropdown
+  const allTagsList = getAllTags();
+
   return (
     <main
       className="min-h-screen pb-20"
-      style={{ background: '#090b0d', color: '#fff' }}
+      style={{ 
+        background: 'var(--theme-bg, #090b0d)', 
+        color: 'var(--theme-fg, #fff)' 
+      }}
     >
       {/* Header */}
       <div
         className="sticky top-0 z-40 flex items-center gap-3 px-4 py-4 border-b"
         style={{
-          background: '#090b0d',
-          borderColor: '#222',
+          background: 'var(--theme-bg-secondary, #090b0d)',
+          borderColor: 'var(--theme-border, #222)',
         }}
       >
         <button
           onClick={() => router.back()}
           className="p-2 hover:opacity-80 transition-opacity"
         >
-          <ArrowLeft size={24} style={{ color: '#ffc107' }} />
+          <ArrowLeft size={24} style={{ color: 'var(--theme-primary, #ffc107)' }} />
         </button>
         <h1 className="text-xl font-bold">Game History</h1>
       </div>
@@ -372,37 +399,36 @@ export default function HistoryPage() {
         <Card
           className="p-3 border"
           style={{
-            background: '#1e2329',
-            borderColor: '#222',
+            background: 'var(--theme-card-bg, #1e2329)',
+            borderColor: 'var(--theme-border, #222)',
           }}
         >
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-1.5">
-              <Filter size={14} style={{ color: '#ffc107' }} />
-              <span className="text-xs font-semibold">Date Filter</span>
+              <Filter size={14} style={{ color: 'var(--theme-primary, #ffc107)' }} />
+              <span className="text-xs font-semibold">Filters</span>
             </div>
             <button
               onClick={resetFilter}
               className="text-xs px-2 py-0.5 rounded"
-              style={{ color: '#ffc107', background: 'rgba(255, 193, 7, 0.1)' }}
+              style={{ color: 'var(--theme-primary, #ffc107)', background: 'rgba(255, 193, 7, 0.1)' }}
             >
-              Reset
+              Reset All
             </button>
           </div>
 
+          {/* Date Filter */}
           <div className="flex flex-wrap gap-1.5 mb-2">
             {(['today', 'yesterday', 'thisWeek', 'thisMonth'] as DateFilter[]).map((filter) => (
               <button
                 key={filter}
                 onClick={() => handleFilterChange(filter)}
                 className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
-                  dateFilter === filter
-                    ? 'text-black'
-                    : 'text-gray-400'
+                  dateFilter === filter ? 'text-black' : 'text-gray-400'
                 }`}
                 style={{
-                  background: dateFilter === filter ? '#ffc107' : '#0f1419',
-                  border: '1px solid #333',
+                  background: dateFilter === filter ? 'var(--theme-primary, #ffc107)' : 'var(--theme-bg-secondary, #0f1419)',
+                  border: '1px solid var(--theme-border, #333)',
                 }}
               >
                 {filter === 'today' ? 'Today' :
@@ -411,18 +437,15 @@ export default function HistoryPage() {
               </button>
             ))}
             
-            {/* Custom Date Picker */}
             <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
               <PopoverTrigger asChild>
                 <button
                   className={`px-2.5 py-1 rounded-lg text-xs font-medium flex items-center gap-1 ${
-                    dateFilter === 'custom'
-                      ? 'text-black'
-                      : 'text-gray-400'
+                    dateFilter === 'custom' ? 'text-black' : 'text-gray-400'
                   }`}
                   style={{
-                    background: dateFilter === 'custom' ? '#ffc107' : '#0f1419',
-                    border: '1px solid #333',
+                    background: dateFilter === 'custom' ? 'var(--theme-primary, #ffc107)' : 'var(--theme-bg-secondary, #0f1419)',
+                    border: '1px solid var(--theme-border, #333)',
                   }}
                 >
                   <CalendarIcon size={12} />
@@ -430,14 +453,11 @@ export default function HistoryPage() {
                 </button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
-                <div className="p-3" style={{ background: '#1e2329', borderColor: '#333' }}>
+                <div className="p-3" style={{ background: 'var(--theme-card-bg, #1e2329)', borderColor: 'var(--theme-border, #333)' }}>
                   <div className="mb-2 text-xs text-white">Select Date Range</div>
                   <Calendar
                     mode="range"
-                    selected={{
-                      from: customStartDate,
-                      to: customEndDate,
-                    }}
+                    selected={{ from: customStartDate, to: customEndDate }}
                     onSelect={(range) => {
                       if (range?.from) setCustomStartDate(range.from);
                       if (range?.to) setCustomEndDate(range.to);
@@ -446,31 +466,85 @@ export default function HistoryPage() {
                     className="rounded-md scale-90 origin-top-left"
                   />
                   <div className="flex gap-2 mt-3">
-                    <Button
-                      onClick={() => setCalendarOpen(false)}
-                      className="flex-1 py-1 text-xs"
-                      style={{ background: '#333', color: '#fff', height: '32px' }}
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      onClick={handleCustomDateSelect}
-                      className="flex-1 py-1 text-xs"
-                      style={{ background: '#ffc107', color: '#000', height: '32px' }}
-                    >
-                      Apply
-                    </Button>
+                    <Button onClick={() => setCalendarOpen(false)} className="flex-1 py-1 text-xs" style={{ background: '#333', color: '#fff', height: '32px' }}>Cancel</Button>
+                    <Button onClick={handleCustomDateSelect} className="flex-1 py-1 text-xs" style={{ background: 'var(--theme-primary, #ffc107)', color: '#000', height: '32px' }}>Apply</Button>
                   </div>
                 </div>
               </PopoverContent>
             </Popover>
           </div>
-          
-          {/* Info note about streak calculation */}
-          <div className="text-[10px] text-gray-500 mt-1 text-center">
-            * Streaks break if gap between bets &gt; 4 minutes
+
+          {/* Tag Filter */}
+          <div className="flex items-center gap-2 mt-2 pt-2 border-t" style={{ borderColor: 'var(--theme-border, #333)' }}>
+            <Tag size={12} style={{ color: 'var(--theme-primary, #ffc107)' }} />
+            <span className="text-xs text-gray-400">Tag:</span>
+            <select
+              value={tagFilter}
+              onChange={(e) => setTagFilter(e.target.value as TagFilter)}
+              className="text-xs rounded px-2 py-1 flex-1"
+              style={{
+                background: 'var(--theme-bg-secondary, #0f1419)',
+                border: '1px solid var(--theme-border, #333)',
+                color: 'var(--theme-fg, #fff)',
+              }}
+            >
+              <option value="all">All Bets</option>
+              {allTagsList.map((tag) => (
+                <option key={tag.id} value={tag.id}>🏷️ {tag.name}</option>
+              ))}
+            </select>
+            
+            <button
+              onClick={() => setShowTagDashboard(!showTagDashboard)}
+              className="flex items-center gap-1 text-xs px-2 py-1 rounded"
+              style={{
+                background: showTagDashboard ? 'var(--theme-primary, #ffc107)' : 'var(--theme-bg-secondary, #0f1419)',
+                color: showTagDashboard ? '#000' : 'var(--theme-fg-muted, #888)',
+                border: '1px solid var(--theme-border, #333)',
+              }}
+            >
+              <BarChart3 size={12} />
+              Stats
+            </button>
           </div>
         </Card>
+
+        {/* Tag Statistics Dashboard */}
+        {showTagDashboard && tagStats.some(s => s.totalCount > 0) && (
+          <Card
+            className="p-3 border"
+            style={{
+              background: 'var(--theme-card-bg, #1e2329)',
+              borderColor: 'var(--theme-border, #222)',
+            }}
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <BarChart3 size={14} style={{ color: 'var(--theme-primary, #ffc107)' }} />
+              <span className="text-xs font-semibold">Tag Performance</span>
+            </div>
+            <div className="space-y-2">
+              {tagStats.map((stat) => (
+                <div key={stat.tagId} className="flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2">
+                    <div 
+                      className="w-2 h-2 rounded-full"
+                      style={{ background: stat.tagInfo.color }}
+                    />
+                    <span style={{ color: stat.tagInfo.color }}>{stat.tagInfo.name}</span>
+                  </div>
+                  <div className="flex gap-3">
+                    <span style={{ color: '#00c853' }}>W:{stat.winCount}</span>
+                    <span style={{ color: '#ff3d00' }}>L:{stat.loseCount}</span>
+                    <span className="text-gray-400">{stat.totalCount} bets</span>
+                    <span className={stat.winRate >= 50 ? 'text-green-500' : 'text-red-500'}>
+                      {stat.winRate.toFixed(0)}%
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
 
         {/* Statistics Cards */}
         {filteredBets.length > 0 ? (
@@ -479,213 +553,4 @@ export default function HistoryPage() {
             <Card
               className="p-4 border text-center"
               style={{
-                background: stats.netProfit >= 0 
-                  ? 'linear-gradient(135deg, #1a3a1a 0%, #0a1a0a 100%)'
-                  : 'linear-gradient(135deg, #3a1a1a 0%, #1a0a0a 100%)',
-                borderColor: stats.netProfit >= 0 ? '#00c853' : '#ff3d00',
-                borderBottomWidth: '4px',
-              }}
-            >
-              <div className="text-xs text-gray-300 mb-1">Net Profit</div>
-              <div 
-                className="text-4xl font-black"
-                style={{ color: stats.netProfit >= 0 ? '#00c853' : '#ff3d00' }}
-              >
-                {stats.netProfit >= 0 ? '+' : ''}{stats.netProfit.toLocaleString()} MMK
-              </div>
-              <div className="text-xs text-gray-400 mt-1">
-                vs Initial Fund ({stats.initialFund.toLocaleString()} MMK): 
-                <span style={{ color: stats.profitPercentage >= 0 ? '#00c853' : '#ff3d00' }}>
-                  {' '}{stats.profitPercentage >= 0 ? '+' : ''}{stats.profitPercentage.toFixed(2)}%
-                </span>
-              </div>
-            </Card>
-
-            {/* Row 1: Basic Stats */}
-            <div className="grid grid-cols-2 gap-2">
-              <Card className="p-2 border" style={{ background: '#1e2329', borderColor: '#222' }}>
-                <div className="text-[10px] text-gray-400">Played</div>
-                <div className="text-lg font-bold text-white">{stats.totalMatches}</div>
-              </Card>
-              <Card className="p-2 border" style={{ background: '#1e2329', borderColor: '#222' }}>
-                <div className="text-[10px] text-gray-400">Total Bet</div>
-                <div className="text-lg font-bold text-white">{stats.totalBetAmount.toLocaleString()}</div>
-              </Card>
-            </div>
-
-            {/* Row 2: Win/Loss Stats */}
-            <div className="grid grid-cols-2 gap-2">
-              <Card className="p-2 border" style={{ background: '#1a3a1a', borderColor: '#00c853' }}>
-                <div className="text-[10px] text-gray-300">Win</div>
-                <div className="text-base font-bold" style={{ color: '#00c853' }}>+{stats.totalWinAmount.toLocaleString()}</div>
-                <div className="text-[10px] text-gray-400">{stats.winMatches} matches ({stats.winRate.toFixed(1)}%)</div>
-              </Card>
-              <Card className="p-2 border" style={{ background: '#3a1a1a', borderColor: '#ff3d00' }}>
-                <div className="text-[10px] text-gray-300">Loss</div>
-                <div className="text-base font-bold" style={{ color: '#ff3d00' }}>-{stats.totalLostAmount.toLocaleString()}</div>
-                <div className="text-[10px] text-gray-400">{stats.lostMatches} matches ({stats.lostRate.toFixed(1)}%)</div>
-              </Card>
-            </div>
-
-             {/* Row 3: Streak Stats - Highest */}
-            <div className="grid grid-cols-2 gap-2">
-              <Card className="p-2 border" style={{ background: '#0f5a2e', borderColor: '#00c853' }}>
-                <div className="flex items-center gap-1">
-                  <TrendingUp size={12} style={{ color: '#00c853' }} />
-                  <span className="text-[10px] text-gray-300">Highest Win Streak</span>
-                </div>
-                <div className="text-xl font-bold" style={{ color: '#00c853' }}>{streakStats.highestWinStreak}</div>
-              </Card>
-              <Card className="p-2 border" style={{ background: '#8b2c2c', borderColor: '#ff3d00' }}>
-                <div className="flex items-center gap-1">
-                  <TrendingDown size={12} style={{ color: '#ff3d00' }} />
-                  <span className="text-[10px] text-gray-300">Highest Loss Streak</span>
-                </div>
-                <div className="text-xl font-bold" style={{ color: '#ff3d00' }}>{streakStats.highestLoseStreak}</div>
-              </Card>
-            </div>
-
-            {/* Row 4: Multiplier Streak Stats */}
-            <Card className="p-2 border" style={{ background: '#0f1215', borderColor: '#333' }}>
-              <div className="text-[10px] text-gray-400 mb-1.5 text-center">Consecutive Wins / Losses</div>
-              <div className="grid grid-cols-3 gap-2 text-center">
-                <div>
-                  <div className="text-[10px] text-gray-500">3x</div>
-                  <div className="flex justify-center gap-2">
-                    <span className="text-xs font-bold" style={{ color: '#00c853' }}>{streakStats.winStreak3x}</span>
-                    <span className="text-xs text-gray-500">/</span>
-                    <span className="text-xs font-bold" style={{ color: '#ff3d00' }}>{streakStats.loseStreak3x}</span>
-                  </div>
-                </div>
-                <div>
-                  <div className="text-[10px] text-gray-500">4x</div>
-                  <div className="flex justify-center gap-2">
-                    <span className="text-xs font-bold" style={{ color: '#00c853' }}>{streakStats.winStreak4x}</span>
-                    <span className="text-xs text-gray-500">/</span>
-                    <span className="text-xs font-bold" style={{ color: '#ff3d00' }}>{streakStats.loseStreak4x}</span>
-                  </div>
-                </div>
-                <div>
-                  <div className="text-[10px] text-gray-500">5x</div>
-                  <div className="flex justify-center gap-2">
-                    <span className="text-xs font-bold" style={{ color: '#00c853' }}>{streakStats.winStreak5x}</span>
-                    <span className="text-xs text-gray-500">/</span>
-                    <span className="text-xs font-bold" style={{ color: '#ff3d00' }}>{streakStats.loseStreak5x}</span>
-                  </div>
-                </div>
-              </div>
-            </Card>
-
-            {/* Bet History List */}
-            <div className="space-y-2">
-              {currentBets.map((bet) => {
-                const { text: statusText, color: statusColor } = getBetStatusDisplay(bet.status);
-                const multiplier = getBetMultiplier(bet.val);
-                let amountText = statusText;
-                let amountColor = statusColor;
-
-                if (bet.status === 'win') {
-                  const winAmount = Math.floor(bet.amt * multiplier);
-                  amountText = `+${winAmount.toLocaleString()}`;
-                  amountColor = '#00c853';
-                } else if (bet.status === 'lost') {
-                  amountText = `-${bet.amt.toLocaleString()}`;
-                  amountColor = '#ff3d00';
-                }
-
-                return (
-                  <Card
-                    key={bet.id}
-                    className="p-2 border"
-                    style={{
-                      background: '#1e2329',
-                      borderColor: '#222',
-                    }}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex-1">
-                        <div className="font-bold text-sm">{bet.val}</div>
-                        <div className="text-[10px] mt-0.5" style={{ color: '#888' }}>
-                          #{bet.period}
-                        </div>
-                        <div className="text-[10px] mt-0.5" style={{ color: '#555' }}>
-                          {bet.date} • {formatTime(bet.createdAt)}
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="font-bold text-sm" style={{ color: amountColor }}>
-                          {amountText}
-                        </div>
-                        <div className="text-[10px] mt-0.5" style={{ color: '#555' }}>
-                          {bet.amt.toLocaleString()} MMK
-                        </div>
-                        {bet.resultNumber !== undefined && (
-                          <div className="text-[10px] mt-0.5 font-bold" style={{ color: '#ffc107' }}>
-                            {bet.resultNumber}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </Card>
-                );
-              })}
-            </div>
-
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between gap-2 mt-2">
-                <Button
-                  onClick={handlePrevPage}
-                  disabled={currentPage === 0}
-                  className="flex items-center gap-1 px-3 py-1 text-xs disabled:opacity-50"
-                  style={{
-                    background: '#ffc107',
-                    color: '#000',
-                    height: '32px',
-                  }}
-                >
-                  <ChevronLeft size={14} />
-                  Prev
-                </Button>
-
-                <div className="flex-1 text-center">
-                  <span className="text-xs font-bold" style={{ color: '#ffc107' }}>
-                    {currentPage + 1} / {totalPages}
-                  </span>
-                </div>
-
-                <Button
-                  onClick={handleNextPage}
-                  disabled={currentPage === totalPages - 1}
-                  className="flex items-center gap-1 px-3 py-1 text-xs disabled:opacity-50"
-                  style={{
-                    background: '#ffc107',
-                    color: '#000',
-                    height: '32px',
-                  }}
-                >
-                  Next
-                  <ChevronRight size={14} />
-                </Button>
-              </div>
-            )}
-          </>
-        ) : (
-          <Card
-            className="p-8 border text-center"
-            style={{
-              background: '#0f1215',
-              borderColor: '#222',
-            }}
-          >
-            <div className="text-xs" style={{ color: '#555' }}>
-              {allBets.length === 0 
-                ? 'No history yet.' 
-                : 'No bets found for the selected date range.'}
-            </div>
-          </Card>
-        )}
-      </div>
-    </main>
-  );
-                  }
+ 
