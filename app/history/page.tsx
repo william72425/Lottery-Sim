@@ -519,6 +519,11 @@ export default function HistoryPage() {
               Stats
             </button>
           </div>
+          
+          {/* Info note about streak calculation */}
+          <div className="text-[10px] text-gray-500 mt-2 text-center">
+            * Streaks break if gap between bets &gt; 4 minutes
+          </div>
         </Card>
 
         {/* Tag Statistics Dashboard */}
@@ -815,4 +820,4 @@ export default function HistoryPage() {
       />
     </main>
   );
-            }
+                }
