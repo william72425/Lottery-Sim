@@ -37,6 +37,22 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+  
+  /* Custom Theme Variables */
+  --theme-bg: #090b0d;
+  --theme-bg-secondary: #0f1215;
+  --theme-fg: #ffffff;
+  --theme-fg-muted: #888888;
+  --theme-primary: #ffc107;
+  --theme-primary-hover: #e6ac00;
+  --theme-accent: #ffc107;
+  --theme-accent-hover: #e6ac00;
+  --theme-success: #00c853;
+  --theme-danger: #ff3d00;
+  --theme-warning: #ff9800;
+  --theme-border: #222222;
+  --theme-card-bg: #1e2329;
+  --theme-card-border: #222222;
 }
 
 .dark {
@@ -121,5 +137,7 @@
   }
   body {
     @apply bg-background text-foreground;
+    background-color: var(--theme-bg);
+    color: var(--theme-fg);
   }
-}
+  }
