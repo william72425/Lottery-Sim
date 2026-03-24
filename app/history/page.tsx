@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   ArrowLeft, ChevronLeft, ChevronRight, Calendar as CalendarIcon, 
-  Filter, TrendingUp, TrendingDown, Tag, BarChart3, Edit2 
+  Filter, TrendingUp, TrendingDown, Tag, BarChart3, Edit2, Info
 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -18,6 +18,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { BetTagModal } from '@/components/bet-tag-modal';
+import { MonthlyFundModal } from '@/components/monthly-fund-modal';
 import { 
   getBetNote, 
   getBetNotes, 
@@ -27,6 +28,11 @@ import {
   getAllTags,
   TagInfo
 } from '@/lib/bet-notes';
+import { 
+  getTotalMonthlyFund, 
+  getCurrentMonthTotalFund,
+  getMonthlyFund
+} from '@/lib/monthly-fund';
 
 const ITEMS_PER_PAGE = 10;
 
@@ -216,20 +222,19 @@ export default function HistoryPage() {
   const [customStartDate, setCustomStartDate] = useState<Date | undefined>(new Date());
   const [customEndDate, setCustomEndDate] = useState<Date | undefined>(new Date());
   const [calendarOpen, setCalendarOpen] = useState(false);
-  const [initialFund, setInitialFund] = useState(0);
   const [betNotes, setBetNotes] = useState<BetNote[]>([]);
   const [tagFilter, setTagFilter] = useState<TagFilter>('all');
   const [selectedBetForTag, setSelectedBetForTag] = useState<Bet | null>(null);
   const [showTagModal, setShowTagModal] = useState(false);
   const [showTagDashboard, setShowTagDashboard] = useState(false);
+  const [showFundModal, setShowFundModal] = useState(false);
+  const [fundRefreshKey, setFundRefreshKey] = useState(0);
 
-  // Load all bets and initial fund
+  // Load all bets
   useEffect(() => {
     const bets = getBets();
     setAllBets(bets);
     setBetNotes(getBetNotes());
-    const fund = getFund();
-    setInitialFund(fund);
   }, []);
 
   // Apply filters
@@ -263,7 +268,7 @@ export default function HistoryPage() {
     setCurrentPage(0);
   }, [allBets, dateFilter, customStartDate, customEndDate, tagFilter, betNotes]);
 
-  // Calculate statistics
+  // Calculate statistics with monthly fund support
   const stats = useMemo(() => {
     const totalMatches = filteredBets.length;
     const totalBetAmount = filteredBets.reduce((sum, bet) => sum + bet.amt, 0);
@@ -272,6 +277,9 @@ export default function HistoryPage() {
     let winMatches = 0;
     let lostMatches = 0;
 
+    // Track fund per month for weighted calculation
+    const monthlyProfitMap: Map<string, { profit: number; fund: number }> = new Map();
+
     filteredBets.forEach(bet => {
       if (bet.status === 'win') {
         const multiplier = getBetMultiplier(bet.val);
@@ -279,16 +287,69 @@ export default function HistoryPage() {
         const profit = winAmount - bet.amt;
         totalWinAmount += profit;
         winMatches++;
+        
+        // Track monthly profit
+        const betDate = new Date(bet.createdAt);
+        const monthKey = `${betDate.getFullYear()}-${betDate.getMonth() + 1}`;
+        const monthlyFund = getTotalMonthlyFund(betDate.getFullYear(), betDate.getMonth() + 1);
+        const existing = monthlyProfitMap.get(monthKey);
+        if (existing) {
+          monthlyProfitMap.set(monthKey, { profit: existing.profit + profit, fund: existing.fund });
+        } else {
+          monthlyProfitMap.set(monthKey, { profit, fund: monthlyFund });
+        }
       } else if (bet.status === 'lost') {
         totalLostAmount += bet.amt;
         lostMatches++;
+        
+        // Track monthly loss
+        const betDate = new Date(bet.createdAt);
+        const monthKey = `${betDate.getFullYear()}-${betDate.getMonth() + 1}`;
+        const monthlyFund = getTotalMonthlyFund(betDate.getFullYear(), betDate.getMonth() + 1);
+        const existing = monthlyProfitMap.get(monthKey);
+        if (existing) {
+          monthlyProfitMap.set(monthKey, { profit: existing.profit - bet.amt, fund: existing.fund });
+        } else {
+          monthlyProfitMap.set(monthKey, { profit: -bet.amt, fund: monthlyFund });
+        }
       }
     });
 
     const netProfit = totalWinAmount - totalLostAmount;
     const winRate = totalMatches > 0 ? (winMatches / totalMatches) * 100 : 0;
     const lostRate = totalMatches > 0 ? (lostMatches / totalMatches) * 100 : 0;
-    const profitPercentage = initialFund > 0 ? (netProfit / initialFund) * 100 : 0;
+    
+    // Calculate weighted profit percentage based on monthly funds
+    let totalWeightedProfit = 0;
+    let totalFundWeight = 0;
+    for (const [_, data] of monthlyProfitMap.entries()) {
+      if (data.fund > 0) {
+        totalWeightedProfit += data.profit;
+        totalFundWeight += data.fund;
+      }
+    }
+    
+    const profitPercentage = totalFundWeight > 0 ? (totalWeightedProfit / totalFundWeight) * 100 : 0;
+    
+    // Get reference month info for display
+    let referenceMonthName = '';
+    let referenceYear = 0;
+    let referenceMonthNum = 0;
+    let referenceFund = 0;
+    
+    if (filteredBets.length > 0) {
+      const firstBetDate = new Date(filteredBets[0].createdAt);
+      referenceYear = firstBetDate.getFullYear();
+      referenceMonthNum = firstBetDate.getMonth() + 1;
+      referenceMonthName = firstBetDate.toLocaleString('default', { month: 'long' });
+      referenceFund = getTotalMonthlyFund(referenceYear, referenceMonthNum);
+    } else {
+      const now = new Date();
+      referenceYear = now.getFullYear();
+      referenceMonthNum = now.getMonth() + 1;
+      referenceMonthName = now.toLocaleString('default', { month: 'long' });
+      referenceFund = getCurrentMonthTotalFund();
+    }
 
     return {
       totalMatches,
@@ -301,9 +362,12 @@ export default function HistoryPage() {
       winRate,
       lostRate,
       profitPercentage,
-      initialFund,
+      referenceFund,
+      referenceMonthName,
+      referenceYear,
+      referenceMonthNum,
     };
-  }, [filteredBets, initialFund]);
+  }, [filteredBets, fundRefreshKey]);
 
   // Calculate streak statistics
   const streakStats = useMemo(() => calculateStreakStats(filteredBets), [filteredBets]);
@@ -370,6 +434,10 @@ export default function HistoryPage() {
 
   const refreshNotes = () => {
     setBetNotes(getBetNotes());
+  };
+
+  const refreshFund = () => {
+    setFundRefreshKey(prev => prev + 1);
   };
 
   const currentRange = getDateRange(dateFilter, customStartDate, customEndDate);
@@ -566,7 +634,7 @@ export default function HistoryPage() {
         {/* Statistics Cards */}
         {filteredBets.length > 0 ? (
           <>
-            {/* Net Profit - Large Card at Top */}
+            {/* Net Profit - Large Card at Top with Fund Info Icon */}
             <Card
               className="p-4 border text-center"
               style={{
@@ -577,7 +645,19 @@ export default function HistoryPage() {
                 borderBottomWidth: '4px',
               }}
             >
-              <div className="text-xs text-gray-300 mb-1">Net Profit</div>
+              <div className="text-xs text-gray-300 mb-1 flex items-center justify-center gap-1">
+                Net Profit
+                <button
+                  onClick={() => setShowFundModal(true)}
+                  className="inline-flex items-center justify-center p-0.5 rounded-full transition-all hover:opacity-80"
+                  style={{
+                    background: 'rgba(255, 193, 7, 0.2)',
+                  }}
+                  title="Click to manage monthly fund"
+                >
+                  <Info size={12} style={{ color: '#ffc107' }} />
+                </button>
+              </div>
               <div 
                 className="text-4xl font-black"
                 style={{ color: stats.netProfit >= 0 ? '#00c853' : '#ff3d00' }}
@@ -585,11 +665,16 @@ export default function HistoryPage() {
                 {stats.netProfit >= 0 ? '+' : ''}{stats.netProfit.toLocaleString()} MMK
               </div>
               <div className="text-xs text-gray-400 mt-1">
-                vs Fund ({stats.initialFund.toLocaleString()} MMK): 
+                vs Fund ({stats.referenceFund.toLocaleString()} MMK): 
                 <span style={{ color: stats.profitPercentage >= 0 ? '#00c853' : '#ff3d00' }}>
                   {' '}{stats.profitPercentage >= 0 ? '+' : ''}{stats.profitPercentage.toFixed(2)}%
                 </span>
               </div>
+              {stats.referenceMonthName && (
+                <div className="text-[10px] text-gray-500 mt-1">
+                  Based on {stats.referenceMonthName} {stats.referenceYear} fund
+                </div>
+              )}
             </Card>
 
             {/* Row 1: Basic Stats */}
@@ -818,6 +903,16 @@ export default function HistoryPage() {
         }}
         onSave={refreshNotes}
       />
+
+      {/* Monthly Fund Modal */}
+      <MonthlyFundModal
+        isOpen={showFundModal}
+        year={stats.referenceYear || new Date().getFullYear()}
+        month={stats.referenceMonthNum || (new Date().getMonth() + 1)}
+        monthName={stats.referenceMonthName || new Date().toLocaleString('default', { month: 'long' })}
+        onClose={() => setShowFundModal(false)}
+        onSave={refreshFund}
+      />
     </main>
   );
-                }
+              }
