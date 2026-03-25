@@ -478,6 +478,36 @@ export default function Home() {
                 My Bets
               </h3>
               <BetHistory bets={bets.slice(0, 10)} />
+              
+              {/* Credit Section */}
+              <div className="mt-6 text-center">
+                <div className="text-xs text-gray-500 mb-1">Optimized & added much features by</div>
+                <div className="text-base font-bold tracking-wide" style={{ color: 'var(--theme-primary, #ffc107)' }}>
+                  William
+                </div>
+                <div className="text-xs text-gray-500 mt-1 flex items-center justify-center gap-1 flex-wrap">
+                  <a 
+                    href="https://t.me/william815" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="hover:underline transition-all"
+                    style={{ color: '#888' }}
+                  >
+                    @william815
+                  </a>
+                  <span style={{ color: '#555' }}>•</span>
+                  <span>with thanks to</span>
+                  <a 
+                    href="https://t.me/Zen_th76" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="hover:underline transition-all"
+                    style={{ color: '#888' }}
+                  >
+                    @Zen_th76
+                  </a>
+                </div>
+              </div>
             </div>
           </TabsContent>
 
@@ -615,4 +645,38 @@ export default function Home() {
       />
     </main>
   );
-                          }
+}
+```
+
+Credit Section ထည့်ထားတဲ့ နေရာ
+
+```tsx
+{/* Credit Section */}
+<div className="mt-6 text-center">
+  <div className="text-xs text-gray-500 mb-1">Optimized & added much features by</div>
+  <div className="text-base font-bold tracking-wide" style={{ color: 'var(--theme-primary, #ffc107)' }}>
+    William
+  </div>
+  <div className="text-xs text-gray-500 mt-1 flex items-center justify-center gap-1 flex-wrap">
+    <a 
+      href="https://t.me/william815" 
+      target="_blank" 
+      rel="noopener noreferrer"
+      className="hover:underline transition-all"
+      style={{ color: '#888' }}
+    >
+      @william815
+    </a>
+    <span style={{ color: '#555' }}>•</span>
+    <span>with thanks to</span>
+    <a 
+      href="https://t.me/Zen_th76" 
+      target="_blank" 
+      rel="noopener noreferrer"
+      className="hover:underline transition-all"
+      style={{ color: '#888' }}
+    >
+      @Zen_th76
+    </a>
+  </div>
+</div>
