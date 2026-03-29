@@ -1,5 +1,3 @@
-import { Bet } from './storage';
-
 export type TagType = 'trend-follow' | 'trend-reverse' | 'zigzag' | 'mindset' | 'custom';
 
 export interface CustomTag {
@@ -7,27 +5,141 @@ export interface CustomTag {
   name: string;
   color: string;
   createdAt: string;
+  category?: string;
 }
 
 export interface BetNote {
   betId: string;
-  tag: TagType;
-  customTagId?: string; // For custom tags
+  tag: TagType | string;
+  customTagId?: string;
   note?: string;
   createdAt: string;
 }
 
 export interface TagInfo {
-  id: TagType | string;
+  id: string;
   name: string;
   description?: string;
   color: string;
   bgColor: string;
   isCustom?: boolean;
+  category?: string;
 }
 
-// Default tags
-const DEFAULT_TAGS: TagInfo[] = [
+export interface TagCategory {
+  id: string;
+  name: string;
+  icon?: string;
+  tags: TagInfo[];
+}
+
+// ========== TAG CATEGORIES & TAGS ==========
+
+export const TAG_CATEGORIES: TagCategory[] = [
+  {
+    id: 'trend-following',
+    name: 'Trend Following',
+    icon: '📈',
+    tags: [
+      {
+        id: 'dragon-follow',
+        name: '#DragonFollow',
+        description: 'နဂါးတန်း (B-B-B...) ဖြစ်နေလို့ ဆက်လိုက်ခြင်း',
+        color: '#ff4444',
+        bgColor: 'rgba(255, 68, 68, 0.15)',
+        category: 'trend-following',
+      },
+      {
+        id: 'mirror-follow',
+        name: '#MirrorFollow',
+        description: 'တစ်လှည့်စီ (B-S-B-S...) ထွက်နေလို့ အစဉ်လိုက်အတိုင်း လိုက်ခြင်း',
+        color: '#ff9800',
+        bgColor: 'rgba(255, 152, 0, 0.15)',
+        category: 'trend-following',
+      },
+      {
+        id: 'twin-follow',
+        name: '#TwinFollow',
+        description: 'နှစ်လုံးတွဲ (B-B-S-S...) ထွက်နေလို့ လိုက်ခြင်း',
+        color: '#ffeb3b',
+        bgColor: 'rgba(255, 235, 59, 0.15)',
+        category: 'trend-following',
+      },
+      {
+        id: 'v-pattern',
+        name: '#V-Pattern',
+        description: '(B-S-B) ထွက်ပြီးနောက် B ပြန်ထွက်မယ်အထင်နဲ့ ထိုးခြင်း',
+        color: '#4caf50',
+        bgColor: 'rgba(76, 175, 80, 0.15)',
+        category: 'trend-following',
+      },
+    ],
+  },
+  {
+    id: 'trend-breaking',
+    name: 'Trend Breaking',
+    icon: '💥',
+    tags: [
+      {
+        id: 'dragon-break',
+        name: '#DragonBreak',
+        description: 'နဂါးတန်း အရမ်းရှည်လာပြီ (ဥပမာ ၈ ကြိမ်ကျော်ပြီ) ဖြစ်လို့ ပြတ်တော့မယ်အထင်နဲ့ ဆန့်ကျင်ဘက်ထိုးခြင်း',
+        color: '#ff6b6b',
+        bgColor: 'rgba(255, 107, 107, 0.15)',
+        category: 'trend-breaking',
+      },
+      {
+        id: 'mirror-break',
+        name: '#MirrorBreak',
+        description: 'တစ်လှည့်စီထွက်တာ ရပ်သွားပြီအထင်နဲ့ ထိုးခြင်း',
+        color: '#e91e63',
+        bgColor: 'rgba(233, 30, 99, 0.15)',
+        category: 'trend-breaking',
+      },
+    ],
+  },
+  {
+    id: 'statistical',
+    name: 'Statistical & Number',
+    icon: '📊',
+    tags: [
+      {
+        id: 'violet-turning',
+        name: '#VioletTurning',
+        description: 'Violet (0 သို့မဟုတ် 5) ထွက်ပြီးရင် Trend ပြောင်းတတ်တဲ့ အလေ့အထကြောင့် ထိုးခြင်း',
+        color: '#9c27b0',
+        bgColor: 'rgba(156, 39, 176, 0.15)',
+        category: 'statistical',
+      },
+      {
+        id: 'hot-number',
+        name: '#HotNumber',
+        description: 'မကြာခဏ ထွက်နေတဲ့ နံပါတ် (ဥပမာ 7) ပါတဲ့ Side ကို လိုက်ခြင်း',
+        color: '#00bcd4',
+        bgColor: 'rgba(0, 188, 212, 0.15)',
+        category: 'statistical',
+      },
+    ],
+  },
+  {
+    id: 'mindset',
+    name: 'Mindset',
+    icon: '🧠',
+    tags: [
+      {
+        id: 'intuition',
+        name: '#Intuition',
+        description: 'ကိုယ့်ရဲ့ ဗီဇ၊ အတွေ့အကြုံအရ ထိုးခြင်း',
+        color: '#3f51b5',
+        bgColor: 'rgba(63, 81, 181, 0.15)',
+        category: 'mindset',
+      },
+    ],
+  },
+];
+
+// Legacy support for old tags
+const LEGACY_TAGS: TagInfo[] = [
   {
     id: 'trend-follow',
     name: 'Trend Follow',
@@ -62,6 +174,50 @@ const DEFAULT_TAGS: TagInfo[] = [
 const BET_NOTES_KEY = 'bet_notes';
 const CUSTOM_TAGS_KEY = 'custom_tags';
 
+// Get all tags (categories + custom + legacy)
+export function getAllTags(): TagInfo[] {
+  const categoryTags: TagInfo[] = [];
+  TAG_CATEGORIES.forEach(category => {
+    categoryTags.push(...category.tags);
+  });
+  
+  const customTags = getCustomTags().map(tag => ({
+    id: tag.id,
+    name: tag.name,
+    color: tag.color,
+    bgColor: `${tag.color}26`,
+    isCustom: true,
+    category: tag.category,
+  }));
+  
+  return [...categoryTags, ...customTags, ...LEGACY_TAGS];
+}
+
+// Get categories with their tags
+export function getTagCategories(): TagCategory[] {
+  const categories = [...TAG_CATEGORIES];
+  
+  // Add custom tags as a separate category
+  const customTags = getCustomTags();
+  if (customTags.length > 0) {
+    categories.push({
+      id: 'custom',
+      name: 'Custom Tags',
+      icon: '🏷️',
+      tags: customTags.map(tag => ({
+        id: tag.id,
+        name: tag.name,
+        color: tag.color,
+        bgColor: `${tag.color}26`,
+        isCustom: true,
+        category: 'custom',
+      })),
+    });
+  }
+  
+  return categories;
+}
+
 // Get all custom tags
 export function getCustomTags(): CustomTag[] {
   if (typeof window === 'undefined') return [];
@@ -70,12 +226,13 @@ export function getCustomTags(): CustomTag[] {
 }
 
 // Add custom tag
-export function addCustomTag(name: string, color: string): CustomTag {
+export function addCustomTag(name: string, color: string, category?: string): CustomTag {
   const tags = getCustomTags();
   const newTag: CustomTag = {
     id: `custom_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
     name,
     color,
+    category,
     createdAt: new Date().toISOString(),
   };
   tags.push(newTag);
@@ -89,24 +246,9 @@ export function deleteCustomTag(tagId: string): void {
   const filtered = tags.filter(t => t.id !== tagId);
   localStorage.setItem(CUSTOM_TAGS_KEY, JSON.stringify(filtered));
   
-  // Also remove any bet notes using this custom tag
   const notes = getBetNotes();
   const updatedNotes = notes.filter(n => !(n.tag === 'custom' && n.customTagId === tagId));
   localStorage.setItem(BET_NOTES_KEY, JSON.stringify(updatedNotes));
-}
-
-// Get all tags (default + custom)
-export function getAllTags(): TagInfo[] {
-  const defaultTags = [...DEFAULT_TAGS];
-  const customTags = getCustomTags();
-  const customTagInfos: TagInfo[] = customTags.map(tag => ({
-    id: tag.id,
-    name: tag.name,
-    color: tag.color,
-    bgColor: `${tag.color}26`, // 15% opacity
-    isCustom: true,
-  }));
-  return [...defaultTags, ...customTagInfos];
 }
 
 // Get tag info by id
@@ -128,7 +270,7 @@ export function getBetNote(betId: string): BetNote | undefined {
 }
 
 // Add or update note for a bet
-export function setBetNote(betId: string, tag: TagType, customTagId?: string, note?: string): void {
+export function setBetNote(betId: string, tag: string, customTagId?: string, note?: string): void {
   const notes = getBetNotes();
   const existingIndex = notes.findIndex(n => n.betId === betId);
   
@@ -166,7 +308,7 @@ export interface TagStats {
   winRate: number;
 }
 
-export function getTagStats(bets: Bet[], betNotes: BetNote[]): TagStats[] {
+export function getTagStats(bets: any[], betNotes: BetNote[]): TagStats[] {
   const allTags = getAllTags();
   const statsMap: Map<string, { win: number; lose: number }> = new Map();
   
@@ -177,7 +319,7 @@ export function getTagStats(bets: Bet[], betNotes: BetNote[]): TagStats[] {
   bets.forEach(bet => {
     const note = betNotes.find(n => n.betId === bet.id);
     if (note && (bet.status === 'win' || bet.status === 'lost')) {
-      const tagId = note.tag === 'custom' ? note.customTagId! : note.tag;
+      const tagId = note.customTagId || note.tag;
       const stats = statsMap.get(tagId);
       if (stats) {
         if (bet.status === 'win') stats.win++;
@@ -189,7 +331,7 @@ export function getTagStats(bets: Bet[], betNotes: BetNote[]): TagStats[] {
   const stats: TagStats[] = [];
   for (const [tagId, counts] of statsMap.entries()) {
     const tagInfo = allTags.find(t => t.id === tagId);
-    if (tagInfo) {
+    if (tagInfo && (counts.win > 0 || counts.lose > 0)) {
       const total = counts.win + counts.lose;
       stats.push({
         tagId,
@@ -203,4 +345,4 @@ export function getTagStats(bets: Bet[], betNotes: BetNote[]): TagStats[] {
   }
   
   return stats.sort((a, b) => b.totalCount - a.totalCount);
-      }
+                      }
