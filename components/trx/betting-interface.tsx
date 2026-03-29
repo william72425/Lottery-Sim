@@ -9,7 +9,7 @@ import { getNumberColor, formatCurrency, validateBetAmount, getCurrentPeriodForB
 import { addBet, deductFromWallet, getWallet } from '@/lib/storage';
 import { playNotificationSound } from '@/lib/sound';
 import { BetTagSelector } from '@/components/bet-tag-selector';
-import { setBetNote, TagType, getAllTags } from '@/lib/bet-notes';
+import { setBetNote, getAllTags } from '@/lib/bet-notes';
 
 interface BettingInterfaceProps {
   period: string;
