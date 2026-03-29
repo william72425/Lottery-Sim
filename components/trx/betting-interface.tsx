@@ -84,12 +84,13 @@ export function BettingInterface({
 
       // Save tag and note
       setBetNote(
-        newBet.id,
-        selectedTagId === 'custom' ? 'custom' : selectedTagId as TagType,
-        selectedTagId === 'custom' ? selectedCustomTagId : undefined,
-        note || undefined
-      );
+  newBet.id,
+  selectedTagId === 'custom' ? 'custom' : selectedTagId,
+  selectedTagId === 'custom' ? selectedCustomTagId : undefined,
+  note || undefined
+);
 
+        
       playNotificationSound();
       setWallet(getWallet());
       setShowBetSheet(false);
@@ -170,7 +171,7 @@ export function BettingInterface({
           <button
             onClick={() => handleBetClick('VIOLET')}
             disabled={isLocked}
-            className="flex-1 py-4 rounded-xl font-bold text-white disabled:opacity-50"
+            className="flex-1 py-4 rounded-xl setBetNote text-white disabled:opacity-50"
             style={{ background: '#d500f9' }}
           >
             Violet
