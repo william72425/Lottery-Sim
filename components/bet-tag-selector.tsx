@@ -1,11 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, X, Edit2, Trash2, Check } from 'lucide-react';
+import { ChevronDown, ChevronRight, Plus, X, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { TagInfo, TagType, getAllTags, addCustomTag, deleteCustomTag, getCustomTags } from '@/lib/bet-notes';
+import { TagCategory, getTagCategories, addCustomTag, deleteCustomTag, getCustomTags } from '@/lib/bet-notes';
 
 interface BetTagSelectorProps {
   selectedTagId: string | null;
@@ -24,14 +24,30 @@ export function BetTagSelector({
   onNoteChange,
   required = true,
 }: BetTagSelectorProps) {
+  const [openCategories, setOpenCategories] = useState<Set<string>>(new Set());
   const [showCustomTagForm, setShowCustomTagForm] = useState(false);
   const [newTagName, setNewTagName] = useState('');
   const [newTagColor, setNewTagColor] = useState('#ff6b6b');
   const [customTags, setCustomTags] = useState(getCustomTags());
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
 
-  const allTags = getAllTags();
-  const defaultTags = allTags.filter(t => !t.isCustom);
-  const customTagList = allTags.filter(t => t.isCustom);
+  const categories = getTagCategories();
+
+  const toggleCategory = (categoryId: string) => {
+    const newOpen = new Set(openCategories);
+    if (newOpen.has(categoryId)) {
+      newOpen.delete(categoryId);
+      if (activeCategory === categoryId) setActiveCategory(null);
+    } else {
+      newOpen.add(categoryId);
+      setActiveCategory(categoryId);
+      // Close other categories
+      for (const id of newOpen) {
+        if (id !== categoryId) newOpen.delete(id);
+      }
+    }
+    setOpenCategories(newOpen);
+  };
 
   const refreshCustomTags = () => {
     setCustomTags(getCustomTags());
@@ -51,7 +67,7 @@ export function BetTagSelector({
       deleteCustomTag(tagId);
       refreshCustomTags();
       if (selectedTagId === tagId) {
-        onTagChange('trend-follow');
+        onTagChange('');
       }
     }
   };
@@ -92,75 +108,79 @@ export function BetTagSelector({
         </button>
       </div>
 
-      {/* Default Tags */}
-      <div className="grid grid-cols-2 gap-2">
-        {defaultTags.map((tag) => {
-          const isSelected = isTagSelected(tag.id, false);
+      {/* Category Dropdowns */}
+      <div className="space-y-2 max-h-64 overflow-y-auto">
+        {categories.map((category) => {
+          const isOpen = openCategories.has(category.id);
+          const isActive = activeCategory === category.id;
+          
           return (
-            <button
-              key={tag.id}
-              onClick={() => handleTagSelect(tag.id, false)}
-              className="p-2 rounded-lg text-left transition-all"
-              style={{
-                background: isSelected ? tag.bgColor : 'var(--theme-bg-secondary, #0f1419)',
-                border: `1px solid ${isSelected ? tag.color : 'var(--theme-border, #333)'}`,
-              }}
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium" style={{ color: tag.color }}>
-                  {tag.name}
-                </span>
-                {isSelected && <Check size={14} style={{ color: tag.color }} />}
-              </div>
-              {tag.description && (
-                <div className="text-[10px] mt-0.5" style={{ color: 'var(--theme-fg-muted, #888)' }}>
-                  {tag.description}
+            <div key={category.id} className="rounded-lg overflow-hidden">
+              {/* Category Header */}
+              <button
+                onClick={() => toggleCategory(category.id)}
+                className="w-full flex items-center justify-between p-2 rounded-lg transition-all"
+                style={{
+                  background: isActive ? 'rgba(255, 193, 7, 0.1)' : 'var(--theme-bg-secondary, #0f1419)',
+                  border: `1px solid ${isActive ? 'var(--theme-primary, #ffc107)' : 'var(--theme-border, #333)'}`,
+                }}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-sm">{category.icon || '📁'}</span>
+                  <span className="text-sm font-medium" style={{ color: 'var(--theme-fg, #fff)' }}>
+                    {category.name}
+                  </span>
+                  <span className="text-xs text-gray-500">({category.tags.length})</span>
+                </div>
+                {isOpen ? (
+                  <ChevronDown size={16} style={{ color: 'var(--theme-primary, #ffc107)' }} />
+                ) : (
+                  <ChevronRight size={16} style={{ color: 'var(--theme-fg-muted, #666)' }} />
+                )}
+              </button>
+
+              {/* Category Tags (Dropdown Content) */}
+              {isOpen && (
+                <div className="mt-1 ml-4 space-y-1.5">
+                  {category.tags.map((tag) => {
+                    const isSelected = isTagSelected(tag.id, !!tag.isCustom, tag.id);
+                    return (
+                      <button
+                        key={tag.id}
+                        onClick={() => handleTagSelect(tag.id, !!tag.isCustom, tag.id)}
+                        className="w-full p-2 rounded-lg text-left transition-all"
+                        style={{
+                          background: isSelected ? tag.bgColor : 'var(--theme-bg-secondary, #0f1419)',
+                          border: `1px solid ${isSelected ? tag.color : 'var(--theme-border, #333)'}`,
+                        }}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <span className="text-xs font-medium" style={{ color: tag.color }}>
+                              {tag.name}
+                            </span>
+                            {tag.description && (
+                              <div className="text-[10px] mt-0.5" style={{ color: 'var(--theme-fg-muted, #888)' }}>
+                                {tag.description}
+                              </div>
+                            )}
+                          </div>
+                          {isSelected && <Check size={12} style={{ color: tag.color }} />}
+                        </div>
+                      </button>
+                    );
+                  })}
+                  {category.id === 'custom' && (
+                    <div className="text-[10px] text-center text-gray-500 pt-1">
+                      Click + Custom Tag to add more
+                    </div>
+                  )}
                 </div>
               )}
-            </button>
+            </div>
           );
         })}
       </div>
-
-      {/* Custom Tags */}
-      {customTagList.length > 0 && (
-        <div className="space-y-1">
-          <div className="text-xs text-gray-500 mt-1">Custom Tags</div>
-          <div className="grid grid-cols-2 gap-2">
-            {customTagList.map((tag) => {
-              const isSelected = isTagSelected(tag.id, true, tag.id);
-              return (
-                <div key={tag.id} className="relative">
-                  <button
-                    onClick={() => handleTagSelect(tag.id, true, tag.id)}
-                    className="w-full p-2 rounded-lg text-left transition-all"
-                    style={{
-                      background: isSelected ? tag.bgColor : 'var(--theme-bg-secondary, #0f1419)',
-                      border: `1px solid ${isSelected ? tag.color : 'var(--theme-border, #333)'}`,
-                    }}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium" style={{ color: tag.color }}>
-                        {tag.name}
-                      </span>
-                      {isSelected && <Check size={14} style={{ color: tag.color }} />}
-                    </div>
-                  </button>
-                  <button
-                    onClick={() => handleDeleteCustomTag(tag.id)}
-                    className="absolute -top-1 -right-1 p-0.5 rounded-full"
-                    style={{
-                      background: 'var(--theme-danger, #ff3d00)',
-                    }}
-                  >
-                    <X size={10} style={{ color: '#fff' }} />
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
 
       {/* Add Custom Tag Form */}
       {showCustomTagForm && (
@@ -232,4 +252,4 @@ export function BetTagSelector({
       </div>
     </div>
   );
-  }
+    }
