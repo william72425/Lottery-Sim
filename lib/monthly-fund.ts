@@ -1,17 +1,30 @@
-export interface MonthlyFund {
-  year: number;
-  month: number;
-  initialFund: number;
-  additions: FundAddition[];
-  createdAt: string;
-  updatedAt: string;
-}
+// lib/monthly-fund.ts
 
 export interface FundAddition {
   id: string;
   amount: number;
   note: string;
   createdAt: string;
+}
+
+export interface FundHistoryEntry {
+  id: string;
+  type: 'set' | 'add' | 'edit';
+  previousAmount?: number;
+  newAmount: number;
+  note: string;
+  createdAt: string;
+  editedAt?: string;
+}
+
+export interface MonthlyFund {
+  year: number;
+  month: number;
+  initialFund: number;
+  additions: FundAddition[];
+  history: FundHistoryEntry[];
+  createdAt: string;
+  updatedAt: string;
 }
 
 // Storage key
@@ -39,28 +52,43 @@ export function getCurrentMonthYear(): { year: number; month: number } {
   };
 }
 
-// Set initial fund for a month (only if not exists)
-export function setInitialMonthlyFund(year: number, month: number, amount: number): MonthlyFund | null {
+// Set initial fund for a month (can edit anytime now)
+export function setInitialMonthlyFund(year: number, month: number, amount: number, note?: string): MonthlyFund {
   const funds = getMonthlyFunds();
-  const existing = funds.find(f => f.year === year && f.month === month);
+  const existingIndex = funds.findIndex(f => f.year === year && f.month === month);
   
-  if (existing) {
-    // Cannot change initial fund once set
-    return null;
-  }
-  
-  const newFund: MonthlyFund = {
-    year,
-    month,
-    initialFund: amount,
-    additions: [],
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+  const now = new Date().toISOString();
+  const historyEntry: FundHistoryEntry = {
+    id: `hist_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+    type: existingIndex !== -1 ? 'edit' : 'set',
+    previousAmount: existingIndex !== -1 ? funds[existingIndex].initialFund : undefined,
+    newAmount: amount,
+    note: note || (existingIndex !== -1 ? 'Edited initial fund amount' : 'Initial fund set'),
+    createdAt: now,
   };
   
-  funds.push(newFund);
-  localStorage.setItem(MONTHLY_FUND_KEY, JSON.stringify(funds));
-  return newFund;
+  if (existingIndex !== -1) {
+    // Update existing
+    funds[existingIndex].initialFund = amount;
+    funds[existingIndex].history.push(historyEntry);
+    funds[existingIndex].updatedAt = now;
+    localStorage.setItem(MONTHLY_FUND_KEY, JSON.stringify(funds));
+    return funds[existingIndex];
+  } else {
+    // Create new
+    const newFund: MonthlyFund = {
+      year,
+      month,
+      initialFund: amount,
+      additions: [],
+      history: [historyEntry],
+      createdAt: now,
+      updatedAt: now,
+    };
+    funds.push(newFund);
+    localStorage.setItem(MONTHLY_FUND_KEY, JSON.stringify(funds));
+    return newFund;
+  }
 }
 
 // Add additional fund to a month
@@ -72,15 +100,25 @@ export function addToMonthlyFund(year: number, month: number, amount: number, no
     return null;
   }
   
+  const now = new Date().toISOString();
   const addition: FundAddition = {
     id: `fund_add_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
     amount,
     note: note.trim() || 'Additional fund',
-    createdAt: new Date().toISOString(),
+    createdAt: now,
+  };
+  
+  const historyEntry: FundHistoryEntry = {
+    id: `hist_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+    type: 'add',
+    newAmount: amount,
+    note: note.trim() || 'Additional fund added',
+    createdAt: now,
   };
   
   funds[index].additions.push(addition);
-  funds[index].updatedAt = new Date().toISOString();
+  funds[index].history.push(historyEntry);
+  funds[index].updatedAt = now;
   
   localStorage.setItem(MONTHLY_FUND_KEY, JSON.stringify(funds));
   return funds[index];
@@ -114,16 +152,17 @@ export function hasMonthlyFund(year: number, month: number): boolean {
 }
 
 // Get fund history for display
-export interface FundHistoryEntry {
+export interface FundHistoryDisplay {
   year: number;
   month: number;
   monthName: string;
   initialFund: number;
   additions: FundAddition[];
+  history: FundHistoryEntry[];
   totalFund: number;
 }
 
-export function getFundHistory(): FundHistoryEntry[] {
+export function getFundHistory(): FundHistoryDisplay[] {
   const funds = getMonthlyFunds();
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   
@@ -138,6 +177,29 @@ export function getFundHistory(): FundHistoryEntry[] {
       monthName: `${monthNames[fund.month - 1]} ${fund.year}`,
       initialFund: fund.initialFund,
       additions: fund.additions,
+      history: fund.history.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
       totalFund: fund.initialFund + fund.additions.reduce((sum, add) => sum + add.amount, 0),
     }));
-  }
+}
+
+// Get recent fund activities (for current month)
+export function getRecentActivities(limit: number = 10): FundHistoryEntry[] {
+  const { year, month } = getCurrentMonthYear();
+  const fund = getMonthlyFund(year, month);
+  if (!fund) return [];
+  
+  return fund.history
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, limit);
+}
+
+// Format date and time
+export function formatFundDateTime(isoString: string): string {
+  const date = new Date(isoString);
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${day}/${month}/${year} ${hours}:${minutes}`;
+                                 }
