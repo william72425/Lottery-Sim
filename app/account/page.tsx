@@ -7,12 +7,16 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
-  getFund,
-  setFund,
-  canEditFund,
-  getFundEditCountdown,
   getWallet,
+  setFund,
 } from '@/lib/storage';
+import {
+  getMonthlyFund,
+  setInitialMonthlyFund,
+  getTotalMonthlyFund,
+  getCurrentMonthYear,
+  formatFundDateTime,
+} from '@/lib/monthly-fund';
 import { validateFundAmount } from '@/lib/trx-utils';
 
 export default function AccountPage() {
@@ -20,23 +24,45 @@ export default function AccountPage() {
   const [wallet, setWallet] = useState(0);
   const [fund, setFundState] = useState(0);
   const [newFund, setNewFund] = useState('');
-  const [canEdit, setCanEdit] = useState(false);
-  const [daysRemaining, setDaysRemaining] = useState(0);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  
+  // Monthly fund state
+  const { year, month } = getCurrentMonthYear();
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const currentMonthName = `${monthNames[month - 1]} ${year}`;
+  const [currentMonthlyFund, setCurrentMonthlyFund] = useState<{ initial: number; total: number; hasFund: boolean }>({
+    initial: 0,
+    total: 0,
+    hasFund: false,
+  });
 
   useEffect(() => {
-    setWallet(getWallet());
-    setFundState(getFund());
-
-    const canEditNow = canEditFund();
-    setCanEdit(canEditNow);
-
-    if (!canEditNow) {
-      const { daysRemaining: days } = getFundEditCountdown();
-      setDaysRemaining(days);
-    }
+    loadData();
   }, []);
+
+  const loadData = () => {
+    setWallet(getWallet());
+    
+    // Load monthly fund
+    const monthlyFund = getMonthlyFund(year, month);
+    if (monthlyFund) {
+      const total = getTotalMonthlyFund(year, month);
+      setCurrentMonthlyFund({
+        initial: monthlyFund.initialFund,
+        total: total,
+        hasFund: true,
+      });
+      setFundState(total);
+    } else {
+      setCurrentMonthlyFund({
+        initial: 0,
+        total: 0,
+        hasFund: false,
+      });
+      setFundState(0);
+    }
+  };
 
   const handleUpdateFund = () => {
     setError('');
@@ -44,29 +70,28 @@ export default function AccountPage() {
 
     const amount = parseInt(newFund);
     if (isNaN(amount)) {
-      setError('မှားယွင်းတဲ့ပမ္ဆာဏ');
+      setError('မှားယွင်းတဲ့ပမာဏ');
       return;
     }
 
     const validation = validateFundAmount(amount);
     if (!validation.valid) {
-      setError(validation.error);
+      setError(validation.error || 'Invalid amount');
       return;
     }
 
-    if (!canEdit) {
-      setError(`နောက်ထပ် ${daysRemaining} ရက်အကြာမှ ပြင်ဆင်လို့ရပါမည်`);
-      return;
+    // Use monthly fund system (NO 30-day limit)
+    const result = setInitialMonthlyFund(year, month, amount, 'Manual fund update from account page');
+    
+    if (result) {
+      setFundState(amount);
+      setNewFund('');
+      loadData();
+      setSuccess(`ရန်ပုံငွေ ${amount.toLocaleString()} MMK အဆင်သင့်လုပ်ဆောင်ပြီးပါပြီ`);
+      setTimeout(() => setSuccess(''), 3000);
+    } else {
+      setError('ရန်ပုံငွေ သတ်မှတ်ရာတွင် အမှားရှိပါသည်');
     }
-
-    setFund(amount);
-    setFundState(amount);
-    setNewFund('');
-    setCanEdit(false);
-    setDaysRemaining(30);
-    setSuccess(' တစ်လစာအတွက် ရန်ပုံငွေ သတ်မှတ်ပြီးပါပြီ Depositတင်ပြီး ကစားနိုင်ပါပြီ');
-
-    setTimeout(() => setSuccess(''), 3000);
   };
 
   return (
@@ -112,7 +137,7 @@ export default function AccountPage() {
           <div className="text-xs text-gray-500 mt-2">MMK</div>
         </Card>
 
-        {/* Fund Balance */}
+        {/* Monthly Fund Display */}
         <Card
           className="p-6 border"
           style={{
@@ -121,16 +146,26 @@ export default function AccountPage() {
             borderBottomWidth: '4px',
           }}
         >
-          <div className="text-xs text-gray-400 mb-2">ရန်ပုံငွေ</div>
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-xs text-gray-400">ရန်ပုံငွေ ({currentMonthName})</div>
+            {currentMonthlyFund.hasFund && (
+              <div className="text-[10px] text-green-500">✓ အဆင်သင့်ဖြစ်ပြီး</div>
+            )}
+          </div>
           <div
             className="text-4xl font-black"
             style={{ color: '#ffc107' }}
           >
-            {fund.toLocaleString()}
+            {currentMonthlyFund.total.toLocaleString()}
           </div>
           <div className="text-xs text-gray-500 mt-2">
-            30,000 - 1,000,000 အကြား
+            10,000 - 200,000 အကြား • အချိန်မရွေး ပြင်ဆင်နိုင်ပါသည်
           </div>
+          {currentMonthlyFund.hasFund && currentMonthlyFund.initial !== currentMonthlyFund.total && (
+            <div className="text-[10px] text-gray-500 mt-1">
+              (Initial: {currentMonthlyFund.initial.toLocaleString()} MMK + Additions)
+            </div>
+          )}
         </Card>
 
         {/* Update Fund Section */}
@@ -141,7 +176,7 @@ export default function AccountPage() {
             borderColor: '#222',
           }}
         >
-          <h3 className="font-bold mb-4">တစ်လစာအတွက် ရန်ပုံငွေ သတ်မှတ်မည်</h3>
+          <h3 className="font-bold mb-4">ရန်ပုံငွေ သတ်မှတ်မည်</h3>
 
           {error && (
             <div
@@ -167,36 +202,34 @@ export default function AccountPage() {
             </div>
           )}
 
-          {!canEdit && daysRemaining > 0 && (
-            <div
-              className="p-3 rounded-lg mb-4 text-sm"
-              style={{
-                background: 'rgba(255, 193, 7, 0.1)',
-                borderLeft: '3px solid #ffc107',
-                color: '#ffc107',
-              }}
-            >
-              နောက်ထပ် {daysRemaining} ရက်အကြာမှ ပြင်ဆင်လို့ရပါမည်
-            </div>
-          )}
+          {/* No 30-day limit info */}
+          <div
+            className="p-3 rounded-lg mb-4 text-sm"
+            style={{
+              background: 'rgba(0, 200, 83, 0.1)',
+              borderLeft: '3px solid #00c853',
+              color: '#00c853',
+            }}
+          >
+            ✅ အချိန်မရွေး ပြင်ဆင်နိုင်ပါသည် (ရက် 30 ကန့်သတ်ချက် မရှိတော့ပါ)
+          </div>
 
           <Input
             type="number"
             value={newFund}
             onChange={(e) => setNewFund(e.target.value)}
-            placeholder="30000 - 1000000"
+            placeholder="10000 - 200000"
             className="mb-4"
             style={{
               background: '#000',
               borderColor: '#444',
               color: '#fff',
             }}
-            disabled={!canEdit}
           />
 
           <Button
             onClick={handleUpdateFund}
-            disabled={!canEdit || !newFund}
+            disabled={!newFund}
             className="w-full py-6 font-bold text-black disabled:opacity-50"
             style={{
               background: '#ffc107',
@@ -215,12 +248,13 @@ export default function AccountPage() {
           }}
         >
           <div className="space-y-2" style={{ color: '#888' }}>
-            <p>• ရန်ပုံငွေကို လစ်လျှင် တစ်ကြိမ်သာ ပြင်ဆင်လို့ရပါသည်</p>
-            <p>• ရန်ပုံငွေ အများဆုံး 1,000,000 MMK ထည့်သွင်းနိုင်ပါသည်</p>
-            <p>• ရန်ပုံငွေမှ အနည်းဆုံး 30,000 MMK ထည့်သွင်းရမည်</p>
+            <p>• ရန်ပုံငွေကို အချိန်မရွေး ပြင်ဆင်နိုင်ပါသည်</p>
+            <p>• ရန်ပုံငွေ အများဆုံး 200,000 MMK ထည့်သွင်းနိုင်ပါသည်</p>
+            <p>• ရန်ပုံငွေမှ အနည်းဆုံး 10,000 MMK ထည့်သွင်းရမည်</p>
+            <p>• ပြောင်းလဲမှုတိုင်းကို မှတ်တမ်းတင်ပါသည်</p>
           </div>
         </Card>
       </div>
     </main>
   );
-    }
+  }
