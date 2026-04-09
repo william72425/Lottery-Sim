@@ -1,8 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, Plus, Trash2, AlertTriangle, Info, History, Clock, Edit2 } from 'lucide-react';
-import { Card } from '@/components/ui/card';
+import { X, Plus, AlertTriangle, Info, History, Clock, Edit2, Check, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -10,8 +9,6 @@ import {
   getMonthlyFund, 
   setInitialMonthlyFund, 
   addToMonthlyFund,
-  getTotalMonthlyFund,
-  hasMonthlyFund,
   getFundHistory,
   FundHistoryDisplay,
   formatFundDateTime,
@@ -41,6 +38,7 @@ export function MonthlyFundModal({ isOpen, year, month, monthName, onClose, onSa
   const [fundHistory, setFundHistory] = useState<FundHistoryDisplay[]>([]);
   const [recentActivities, setRecentActivities] = useState<FundHistoryEntry[]>([]);
   const [isEditingInitial, setIsEditingInitial] = useState(false);
+  const [expandedMonths, setExpandedMonths] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (isOpen) {
@@ -123,12 +121,19 @@ export function MonthlyFundModal({ isOpen, year, month, monthName, onClose, onSa
     }
   };
 
+  const toggleMonthExpand = (monthKey: string) => {
+    const newExpanded = new Set(expandedMonths);
+    if (newExpanded.has(monthKey)) {
+      newExpanded.delete(monthKey);
+    } else {
+      newExpanded.add(monthKey);
+    }
+    setExpandedMonths(newExpanded);
+  };
+
   if (!isOpen) return null;
 
   const hasFund = currentFund !== null;
-
-  // Get history entries for this month
-  const monthHistory = fundHistory.find(h => h.year === year && h.month === month)?.history || [];
 
   return (
     <>
@@ -263,7 +268,7 @@ export function MonthlyFundModal({ isOpen, year, month, monthName, onClose, onSa
               Set Initial Fund for {monthName}
             </div>
             <div className="text-xs text-gray-400 mb-3">
-              Minimum: 10,000 MMK | Maximum: 200,000 MMK
+              Minimum: 10,000 MMK | Maximum: 200,000 MMK | No 30-day limit
             </div>
             <Input
               type="number"
@@ -371,7 +376,7 @@ export function MonthlyFundModal({ isOpen, year, month, monthName, onClose, onSa
           </div>
         )}
 
-        {/* History Section - Recent Activities */}
+        {/* Recent Activities Section */}
         {recentActivities.length > 0 && (
           <div className="mt-4">
             <div className="flex items-center gap-2 mb-2">
@@ -441,51 +446,77 @@ export function MonthlyFundModal({ isOpen, year, month, monthName, onClose, onSa
         {/* All History */}
         {showHistory && fundHistory.length > 0 && (
           <div className="mt-3 space-y-3 max-h-64 overflow-y-auto">
-            <div className="text-xs font-semibold text-gray-400 mb-2">All Months History</div>
-            {fundHistory.map((history) => (
-              <div
-                key={`${history.year}-${history.month}`}
-                className="p-2 rounded-lg"
-                style={{
-                  background: history.year === year && history.month === month ? '#ffc10720' : '#0f1419',
-                  border: '1px solid #333',
-                }}
-              >
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-xs font-medium" style={{ color: '#ffc107' }}>
-                    {history.monthName}
-                  </span>
-                  <span className="text-xs" style={{ color: '#fff' }}>
-                    Total: {history.totalFund.toLocaleString()} MMK
-                  </span>
-                </div>
-                {history.history.length > 0 && (
-                  <div className="space-y-1 pl-2">
-                    {history.history.slice(0, 5).map((entry) => (
-                      <div key={entry.id} className="text-[10px] flex justify-between" style={{ color: '#888' }}>
-                        <span>
-                          {entry.type === 'add' ? '+' : entry.type === 'edit' ? '✏️' : '📌'} 
-                          {' '}{entry.newAmount.toLocaleString()} MMK
-                        </span>
-                        <span>{formatFundDateTime(entry.createdAt)}</span>
-                      </div>
-                    ))}
-                    {history.history.length > 5 && (
-                      <div className="text-[9px] text-gray-600">+{history.history.length - 5} more</div>
+            {fundHistory.map((history) => {
+              const monthKey = `${history.year}-${history.month}`;
+              const isExpanded = expandedMonths.has(monthKey);
+              
+              return (
+                <div
+                  key={monthKey}
+                  className="rounded-lg"
+                  style={{
+                    background: history.year === year && history.month === month ? '#ffc10720' : '#0f1419',
+                    border: '1px solid #333',
+                  }}
+                >
+                  {/* Month Header */}
+                  <button
+                    onClick={() => toggleMonthExpand(monthKey)}
+                    className="w-full flex justify-between items-center p-2 hover:opacity-80"
+                  >
+                    <div>
+                      <span className="text-xs font-medium" style={{ color: '#ffc107' }}>
+                        {history.monthName}
+                      </span>
+                      <span className="text-xs ml-2" style={{ color: '#fff' }}>
+                        Total: {history.totalFund.toLocaleString()} MMK
+                      </span>
+                    </div>
+                    {isExpanded ? (
+                      <ChevronUp size={14} style={{ color: '#ffc107' }} />
+                    ) : (
+                      <ChevronDown size={14} style={{ color: '#ffc107' }} />
                     )}
-                  </div>
-                )}
-              </div>
-            ))}
+                  </button>
+                  
+                  {/* Expanded Content */}
+                  {isExpanded && (
+                    <div className="p-2 pt-0 space-y-1">
+                      {history.history.map((entry) => (
+                        <div key={entry.id} className="text-[10px] flex justify-between items-center py-1 border-t border-gray-800">
+                          <div className="flex items-center gap-2">
+                            <span>
+                              {entry.type === 'add' ? '➕' : entry.type === 'edit' ? '✏️' : '📌'} 
+                            </span>
+                            <span style={{ color: entry.type === 'add' ? '#00c853' : '#ffc107' }}>
+                              {entry.newAmount.toLocaleString()} MMK
+                            </span>
+                            {entry.previousAmount && (
+                              <span className="text-gray-500">(was {entry.previousAmount.toLocaleString()} MMK)</span>
+                            )}
+                          </div>
+                          <span className="text-gray-500">{formatFundDateTime(entry.createdAt)}</span>
+                        </div>
+                      ))}
+                      {history.history.length === 0 && (
+                        <div className="text-[10px] text-gray-500 text-center py-2">
+                          No history entries
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
 
-        {/* Info Note */}
+        {/* Info Note - No 30-day limit */}
         <div className="mt-4 pt-3 border-t border-gray-800 text-[10px] text-gray-500 text-center">
           <Info size={10} className="inline mr-1" />
-          All fund changes are tracked with date, time, and notes. No 30-day limit anymore.
+          ✅ No 30-day limit - you can edit anytime. All changes are tracked with date, time, and notes.
         </div>
       </div>
     </>
   );
-  }
+        }
