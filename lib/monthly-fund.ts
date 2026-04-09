@@ -14,7 +14,6 @@ export interface FundHistoryEntry {
   newAmount: number;
   note: string;
   createdAt: string;
-  editedAt?: string;
 }
 
 export interface MonthlyFund {
@@ -52,7 +51,7 @@ export function getCurrentMonthYear(): { year: number; month: number } {
   };
 }
 
-// Set initial fund for a month (can edit anytime now)
+// Set initial fund for a month (NO 30-DAY LIMIT - can edit anytime)
 export function setInitialMonthlyFund(year: number, month: number, amount: number, note?: string): MonthlyFund {
   const funds = getMonthlyFunds();
   const existingIndex = funds.findIndex(f => f.year === year && f.month === month);
@@ -202,4 +201,4 @@ export function formatFundDateTime(isoString: string): string {
   const hours = String(date.getHours()).padStart(2, '0');
   const minutes = String(date.getMinutes()).padStart(2, '0');
   return `${day}/${month}/${year} ${hours}:${minutes}`;
-                                 }
+}
