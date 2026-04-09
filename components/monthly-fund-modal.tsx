@@ -47,7 +47,11 @@ export function MonthlyFundModal({ isOpen, year, month, monthName, onClose, onSa
   }, [isOpen, year, month]);
 
   const loadData = () => {
+    console.log('Loading fund data for:', year, month);
+    
     const fund = getMonthlyFund(year, month);
+    console.log('Fund data:', fund);
+    
     if (fund) {
       setCurrentFund({
         initial: fund.initialFund,
@@ -57,8 +61,15 @@ export function MonthlyFundModal({ isOpen, year, month, monthName, onClose, onSa
     } else {
       setCurrentFund(null);
     }
-    setFundHistory(getFundHistory());
-    setRecentActivities(getRecentActivities(10));
+    
+    const history = getFundHistory();
+    console.log('Fund history:', history);
+    setFundHistory(history);
+    
+    const recent = getRecentActivities(10);
+    console.log('Recent activities:', recent);
+    setRecentActivities(recent);
+    
     setError('');
     setSuccess('');
     setInitialFund('');
@@ -85,6 +96,8 @@ export function MonthlyFundModal({ isOpen, year, month, monthName, onClose, onSa
     }
 
     const result = setInitialMonthlyFund(year, month, amount, initialFundNote || undefined);
+    console.log('Set fund result:', result);
+    
     if (result) {
       setSuccess(`Initial fund of ${amount.toLocaleString()} MMK ${currentFund ? 'updated' : 'set'} for ${monthName}`);
       loadData();
@@ -108,6 +121,8 @@ export function MonthlyFundModal({ isOpen, year, month, monthName, onClose, onSa
     }
 
     const result = addToMonthlyFund(year, month, amount, additionNote);
+    console.log('Add fund result:', result);
+    
     if (result) {
       setSuccess(`Added ${amount.toLocaleString()} MMK to fund`);
       setAdditionAmount('');
@@ -223,6 +238,8 @@ export function MonthlyFundModal({ isOpen, year, month, monthName, onClose, onSa
                 </div>
               )}
             </div>
+            
+            {/* Additional Funds List */}
             {currentFund.additions.length > 0 && (
               <div className="mb-2">
                 <div className="text-xs text-gray-400 mb-1">Additional Funds:</div>
@@ -239,6 +256,7 @@ export function MonthlyFundModal({ isOpen, year, month, monthName, onClose, onSa
                 ))}
               </div>
             )}
+            
             <div className="flex justify-between items-center pt-2 border-t border-gray-800">
               <span className="text-sm font-semibold text-white">Total Fund</span>
               <span className="text-lg font-bold" style={{ color: '#ffc107' }}>
@@ -376,13 +394,13 @@ export function MonthlyFundModal({ isOpen, year, month, monthName, onClose, onSa
           </div>
         )}
 
-        {/* Recent Activities Section */}
+        {/* ========== RECENT ACTIVITIES SECTION ========== */}
         {recentActivities.length > 0 && (
           <div className="mt-4">
             <div className="flex items-center gap-2 mb-2">
               <Clock size={14} style={{ color: '#ffc107' }} />
               <span className="text-xs font-semibold" style={{ color: '#fff' }}>
-                Recent Activities (This Month)
+                Recent Activities (This Month) - {recentActivities.length} entries
               </span>
             </div>
             <div className="space-y-2 max-h-48 overflow-y-auto">
@@ -429,6 +447,15 @@ export function MonthlyFundModal({ isOpen, year, month, monthName, onClose, onSa
           </div>
         )}
 
+        {/* No Recent Activities Message */}
+        {recentActivities.length === 0 && hasFund && (
+          <div className="mt-4 p-3 rounded-lg text-center" style={{ background: '#0f1419', border: '1px solid #333' }}>
+            <div className="text-xs text-gray-500">
+              No recent activities yet. Add or edit fund to see history here.
+            </div>
+          </div>
+        )}
+
         {/* Fund History Button */}
         <button
           onClick={() => setShowHistory(!showHistory)}
@@ -440,12 +467,20 @@ export function MonthlyFundModal({ isOpen, year, month, monthName, onClose, onSa
           }}
         >
           <History size={12} />
-          {showHistory ? 'Hide All History' : 'Show All History'}
+          {showHistory ? 'Hide All History' : 'Show All History'} ({fundHistory.length} months)
         </button>
 
-        {/* All History */}
-        {showHistory && fundHistory.length > 0 && (
+        {/* ========== ALL HISTORY SECTION ========== */}
+        {showHistory && (
           <div className="mt-3 space-y-3 max-h-64 overflow-y-auto">
+            {fundHistory.length === 0 && (
+              <div className="p-3 rounded-lg text-center" style={{ background: '#0f1419', border: '1px solid #333' }}>
+                <div className="text-xs text-gray-500">
+                  No fund history yet. Set initial fund to get started.
+                </div>
+              </div>
+            )}
+            
             {fundHistory.map((history) => {
               const monthKey = `${history.year}-${history.month}`;
               const isExpanded = expandedMonths.has(monthKey);
@@ -479,9 +514,14 @@ export function MonthlyFundModal({ isOpen, year, month, monthName, onClose, onSa
                     )}
                   </button>
                   
-                  {/* Expanded Content */}
+                  {/* Expanded Content - History Entries */}
                   {isExpanded && (
                     <div className="p-2 pt-0 space-y-1">
+                      {history.history.length === 0 && (
+                        <div className="text-[10px] text-gray-500 text-center py-2">
+                          No history entries for this month
+                        </div>
+                      )}
                       {history.history.map((entry) => (
                         <div key={entry.id} className="text-[10px] flex justify-between items-center py-1 border-t border-gray-800">
                           <div className="flex items-center gap-2">
@@ -498,11 +538,6 @@ export function MonthlyFundModal({ isOpen, year, month, monthName, onClose, onSa
                           <span className="text-gray-500">{formatFundDateTime(entry.createdAt)}</span>
                         </div>
                       ))}
-                      {history.history.length === 0 && (
-                        <div className="text-[10px] text-gray-500 text-center py-2">
-                          No history entries
-                        </div>
-                      )}
                     </div>
                   )}
                 </div>
@@ -511,7 +546,7 @@ export function MonthlyFundModal({ isOpen, year, month, monthName, onClose, onSa
           </div>
         )}
 
-        {/* Info Note - No 30-day limit */}
+        {/* Info Note */}
         <div className="mt-4 pt-3 border-t border-gray-800 text-[10px] text-gray-500 text-center">
           <Info size={10} className="inline mr-1" />
           ✅ No 30-day limit - you can edit anytime. All changes are tracked with date, time, and notes.
@@ -519,4 +554,4 @@ export function MonthlyFundModal({ isOpen, year, month, monthName, onClose, onSa
       </div>
     </>
   );
-        }
+}
