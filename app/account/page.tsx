@@ -95,7 +95,6 @@ export default function AccountPage() {
       return;
     }
 
-    // Use monthly fund system (NO 30-day limit)
     const result = setInitialMonthlyFund(year, month, amount, 'Manual fund update from account page');
     
     if (result) {
@@ -434,4 +433,4 @@ export default function AccountPage() {
       </div>
     </main>
   );
-        }
+                            }
