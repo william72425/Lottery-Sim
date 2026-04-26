@@ -1,5 +1,3 @@
-// lib/storage.ts
-
 export const STORAGE_KEYS = {
   WALLET: 'trx_wallet',
   BETS: 'trx_bets',
@@ -15,33 +13,17 @@ export const STORAGE_KEYS = {
 
 export function initializeStorage() {
   if (typeof window === 'undefined') return;
-
-  if (!localStorage.getItem(STORAGE_KEYS.WALLET)) {
-    localStorage.setItem(STORAGE_KEYS.WALLET, '0');
-  }
-  if (!localStorage.getItem(STORAGE_KEYS.FUND)) {
-    localStorage.setItem(STORAGE_KEYS.FUND, '0');
-  }
-  if (!localStorage.getItem(STORAGE_KEYS.BETS)) {
-    localStorage.setItem(STORAGE_KEYS.BETS, '[]');
-  }
-  if (!localStorage.getItem(STORAGE_KEYS.DEPOSITS)) {
-    localStorage.setItem(STORAGE_KEYS.DEPOSITS, '[]');
-  }
-  if (!localStorage.getItem(STORAGE_KEYS.WITHDRAWALS)) {
-    localStorage.setItem(STORAGE_KEYS.WITHDRAWALS, '[]');
-  }
-  if (!localStorage.getItem(STORAGE_KEYS.SOUND_ENABLED)) {
-    localStorage.setItem(STORAGE_KEYS.SOUND_ENABLED, 'true');
-  }
-  if (!localStorage.getItem('trx_results')) {
-    localStorage.setItem('trx_results', '[]');
-  }
+  if (!localStorage.getItem(STORAGE_KEYS.WALLET)) localStorage.setItem(STORAGE_KEYS.WALLET, '0');
+  if (!localStorage.getItem(STORAGE_KEYS.FUND)) localStorage.setItem(STORAGE_KEYS.FUND, '0');
+  if (!localStorage.getItem(STORAGE_KEYS.BETS)) localStorage.setItem(STORAGE_KEYS.BETS, '[]');
+  if (!localStorage.getItem(STORAGE_KEYS.DEPOSITS)) localStorage.setItem(STORAGE_KEYS.DEPOSITS, '[]');
+  if (!localStorage.getItem(STORAGE_KEYS.WITHDRAWALS)) localStorage.setItem(STORAGE_KEYS.WITHDRAWALS, '[]');
+  if (!localStorage.getItem(STORAGE_KEYS.SOUND_ENABLED)) localStorage.setItem(STORAGE_KEYS.SOUND_ENABLED, 'true');
+  if (!localStorage.getItem('trx_results')) localStorage.setItem('trx_results', '[]');
 }
 
 export function getWallet(): number {
-  if (typeof window === 'undefined') return 0;
-  return parseFloat(localStorage.getItem(STORAGE_KEYS.WALLET) || '0');
+  return typeof window === 'undefined' ? 0 : parseFloat(localStorage.getItem(STORAGE_KEYS.WALLET) || '0');
 }
 
 export function setWallet(amount: number): void {
@@ -50,8 +32,7 @@ export function setWallet(amount: number): void {
 }
 
 export function addToWallet(amount: number): void {
-  const current = getWallet();
-  setWallet(current + amount);
+  setWallet(getWallet() + amount);
 }
 
 export function deductFromWallet(amount: number): boolean {
@@ -62,8 +43,7 @@ export function deductFromWallet(amount: number): boolean {
 }
 
 export function getFund(): number {
-  if (typeof window === 'undefined') return 0;
-  return parseFloat(localStorage.getItem(STORAGE_KEYS.FUND) || '0');
+  return typeof window === 'undefined' ? 0 : parseFloat(localStorage.getItem(STORAGE_KEYS.FUND) || '0');
 }
 
 export function setFund(amount: number): void {
@@ -98,12 +78,10 @@ export function getBets(): Bet[] {
 
 export function addBet(bet: Omit<Bet, 'id' | 'createdAt'>): Bet {
   const bets = getBets();
-  const now = new Date();
-  
   const newBet: Bet = {
     ...bet,
     id: `bet_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-    createdAt: now.toISOString(),
+    createdAt: new Date().toISOString(),
   };
   bets.unshift(newBet);
   localStorage.setItem(STORAGE_KEYS.BETS, JSON.stringify(bets));
@@ -126,10 +104,8 @@ export function updateBetsByPeriod(period: string, resultNumber: number): void {
       const isWin = checkBetWin(bet.val, resultNumber);
       bet.status = isWin ? 'win' : 'lost';
       bet.resultNumber = resultNumber;
-      
       if (isWin) {
-        const multiplier = isNaN(Number(bet.val)) ? 1.98 : 8.82;
-        addToWallet(bet.amt * multiplier);
+        addToWallet(bet.amt * (isNaN(Number(bet.val)) ? 1.98 : 8.82));
       }
     }
   });
@@ -165,18 +141,14 @@ function isDepositLimitActive(): boolean {
   try {
     const settings = localStorage.getItem('app_settings');
     if (settings) {
-      const parsed = JSON.parse(settings);
-      return parsed.depositLimitEnabled !== false;
+      return JSON.parse(settings).depositLimitEnabled !== false;
     }
-  } catch (e) {
-    console.log('Error reading settings:', e);
-  }
+  } catch {}
   return true;
 }
 
 export function addDeposit(amount: number, note: string = ''): Deposit | null {
   if (typeof window === 'undefined') return null;
-
   const fund = getFund();
   if (fund < amount) return null;
 
@@ -189,10 +161,7 @@ export function addDeposit(amount: number, note: string = ''): Deposit | null {
     localStorage.setItem(STORAGE_KEYS.DEPOSIT_LAST_DATE, today);
   }
 
-  const limitActive = isDepositLimitActive();
-  if (limitActive && countToday >= 3) {
-    return null;
-  }
+  if (isDepositLimitActive() && countToday >= 3) return null;
 
   const deposits = getDeposits();
   const newDeposit: Deposit = {
@@ -209,25 +178,16 @@ export function addDeposit(amount: number, note: string = ''): Deposit | null {
 
   setFund(fund - amount);
   addToWallet(amount);
-
   return newDeposit;
 }
 
 export function getRemainingDepositsToday(): number {
   if (typeof window === 'undefined') return 0;
-
   const today = new Date().toISOString().split('T')[0];
   const lastDate = localStorage.getItem(STORAGE_KEYS.DEPOSIT_LAST_DATE);
   let countToday = parseInt(localStorage.getItem(STORAGE_KEYS.DEPOSIT_COUNT_TODAY) || '0');
-
-  if (lastDate !== today) {
-    countToday = 0;
-  }
-
-  const limitActive = isDepositLimitActive();
-  if (!limitActive) {
-    return 999;
-  }
+  if (lastDate !== today) countToday = 0;
+  if (!isDepositLimitActive()) return 999;
   return Math.max(0, 3 - countToday);
 }
 
@@ -247,12 +207,8 @@ export function getWithdrawals(): Withdrawal[] {
 export function addWithdrawal(amount: number): Withdrawal | null {
   const wallet = getWallet();
   if (wallet < amount) return null;
-
   deductFromWallet(amount);
-
-  const currentFund = getFund();
-  setFund(currentFund + amount);
-
+  setFund(getFund() + amount);
   const withdrawals = getWithdrawals();
   const newWithdrawal: Withdrawal = {
     id: `wd_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -260,10 +216,8 @@ export function addWithdrawal(amount: number): Withdrawal | null {
     createdAt: new Date().toISOString(),
     date: new Date().toISOString().split('T')[0],
   };
-
   withdrawals.unshift(newWithdrawal);
   localStorage.setItem(STORAGE_KEYS.WITHDRAWALS, JSON.stringify(withdrawals));
-
   return newWithdrawal;
 }
 
@@ -275,4 +229,4 @@ export function isSoundEnabled(): boolean {
 export function setSoundEnabled(enabled: boolean): void {
   if (typeof window === 'undefined') return;
   localStorage.setItem(STORAGE_KEYS.SOUND_ENABLED, enabled.toString());
-}
+    }
