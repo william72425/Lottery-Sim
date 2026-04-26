@@ -1,4 +1,5 @@
-// Storage Keys
+// lib/storage.ts
+
 export const STORAGE_KEYS = {
   WALLET: 'trx_wallet',
   BETS: 'trx_bets',
@@ -12,7 +13,6 @@ export const STORAGE_KEYS = {
   SOUND_ENABLED: 'trx_sound_enabled',
 };
 
-// Initialize default values
 export function initializeStorage() {
   if (typeof window === 'undefined') return;
 
@@ -39,7 +39,6 @@ export function initializeStorage() {
   }
 }
 
-// Wallet Operations
 export function getWallet(): number {
   if (typeof window === 'undefined') return 0;
   return parseFloat(localStorage.getItem(STORAGE_KEYS.WALLET) || '0');
@@ -62,7 +61,6 @@ export function deductFromWallet(amount: number): boolean {
   return true;
 }
 
-// Fund Operations (Legacy - kept for compatibility)
 export function getFund(): number {
   if (typeof window === 'undefined') return 0;
   return parseFloat(localStorage.getItem(STORAGE_KEYS.FUND) || '0');
@@ -74,7 +72,6 @@ export function setFund(amount: number): void {
   localStorage.setItem(STORAGE_KEYS.FUND_LAST_EDIT, new Date().toISOString());
 }
 
-// No more 30-day limit - always return true
 export function canEditFund(): boolean {
   return true;
 }
@@ -83,7 +80,6 @@ export function getFundEditCountdown(): { canEdit: boolean; daysRemaining: numbe
   return { canEdit: true, daysRemaining: 0 };
 }
 
-// Bet Operations
 export interface Bet {
   id: string;
   period: string;
@@ -150,7 +146,6 @@ export function checkBetWin(betValue: string, resultNumber: number): boolean {
   return false;
 }
 
-// Deposit Operations
 export interface Deposit {
   id: string;
   amount: number;
@@ -165,28 +160,25 @@ export function getDeposits(): Deposit[] {
   return deposits ? JSON.parse(deposits) : [];
 }
 
-// Helper function to check deposit limit setting
 function isDepositLimitActive(): boolean {
+  if (typeof window === 'undefined') return true;
   try {
-    // Dynamic import to avoid circular dependency
     const settings = localStorage.getItem('app_settings');
     if (settings) {
       const parsed = JSON.parse(settings);
-      return parsed.depositLimitEnabled !== false; // Default to true if not set
+      return parsed.depositLimitEnabled !== false;
     }
-    return true; // Default to enabled
-  } catch {
-    return true;
+  } catch (e) {
+    console.log('Error reading settings:', e);
   }
+  return true;
 }
 
 export function addDeposit(amount: number, note: string = ''): Deposit | null {
   if (typeof window === 'undefined') return null;
 
   const fund = getFund();
-  if (fund < amount) {
-    return null;
-  }
+  if (fund < amount) return null;
 
   const today = new Date().toISOString().split('T')[0];
   const lastDate = localStorage.getItem(STORAGE_KEYS.DEPOSIT_LAST_DATE);
@@ -197,9 +189,8 @@ export function addDeposit(amount: number, note: string = ''): Deposit | null {
     localStorage.setItem(STORAGE_KEYS.DEPOSIT_LAST_DATE, today);
   }
 
-  // Check limit only if deposit limit is enabled
-  const limitEnabled = isDepositLimitActive();
-  if (limitEnabled && countToday >= 3) {
+  const limitActive = isDepositLimitActive();
+  if (limitActive && countToday >= 3) {
     return null;
   }
 
@@ -233,15 +224,13 @@ export function getRemainingDepositsToday(): number {
     countToday = 0;
   }
 
-  const limitEnabled = isDepositLimitActive();
-  if (!limitEnabled) {
-    return 999; // Unlimited when limit is disabled
+  const limitActive = isDepositLimitActive();
+  if (!limitActive) {
+    return 999;
   }
-
   return Math.max(0, 3 - countToday);
 }
 
-// Withdrawal Operations
 export interface Withdrawal {
   id: string;
   amount: number;
@@ -278,7 +267,6 @@ export function addWithdrawal(amount: number): Withdrawal | null {
   return newWithdrawal;
 }
 
-// Sound Settings
 export function isSoundEnabled(): boolean {
   if (typeof window === 'undefined') return true;
   return localStorage.getItem(STORAGE_KEYS.SOUND_ENABLED) === 'true';
@@ -287,4 +275,4 @@ export function isSoundEnabled(): boolean {
 export function setSoundEnabled(enabled: boolean): void {
   if (typeof window === 'undefined') return;
   localStorage.setItem(STORAGE_KEYS.SOUND_ENABLED, enabled.toString());
-                    }
+}
