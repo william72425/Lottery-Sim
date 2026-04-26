@@ -5,9 +5,10 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
-import { ChevronLeft, Palette, Check, Moon, Flame, Leaf, Zap } from 'lucide-react';
+import { ChevronLeft, Palette, Check, Moon, Flame, Leaf, Zap, Shield, AlertTriangle } from 'lucide-react';
 import { STORAGE_KEYS } from '@/lib/storage';
 import { THEMES, ThemeType, getCurrentTheme, setTheme } from '@/lib/theme';
+import { isDepositLimitEnabled, toggleDepositLimit, getSettings } from '@/lib/settings';
 import {
   Select,
   SelectContent,
@@ -24,12 +25,14 @@ export default function SettingsPage() {
   const [currentTheme, setCurrentTheme] = useState<ThemeType>('dark');
   const [selectedTheme, setSelectedTheme] = useState<ThemeType>('dark');
   const [showThemeSelector, setShowThemeSelector] = useState(false);
+  const [depositLimitEnabled, setDepositLimitEnabled] = useState(true);
 
-  // Load current theme on mount
+  // Load current theme and deposit limit setting
   useEffect(() => {
     const savedTheme = getCurrentTheme();
     setCurrentTheme(savedTheme);
     setSelectedTheme(savedTheme);
+    setDepositLimitEnabled(isDepositLimitEnabled());
   }, []);
 
   const handleReset = () => {
@@ -38,12 +41,16 @@ export default function SettingsPage() {
       return;
     }
 
-    // Clear all storage
+    // Clear all storage except settings
     Object.values(STORAGE_KEYS).forEach((key) => {
       localStorage.removeItem(key);
     });
     localStorage.removeItem('trx_results');
-    localStorage.removeItem('app_theme'); // Don't remove theme on reset
+    localStorage.removeItem('app_theme');
+    localStorage.removeItem('monthly_funds');
+    localStorage.removeItem('earnedBadges');
+    localStorage.removeItem('bet_notes');
+    localStorage.removeItem('custom_tags');
 
     // Reinitialize with defaults
     localStorage.setItem(STORAGE_KEYS.WALLET, '0');
@@ -58,7 +65,6 @@ export default function SettingsPage() {
     setPassword('');
     setShowResetForm(false);
 
-    // Reload page after 2 seconds
     setTimeout(() => {
       window.location.href = '/';
     }, 2000);
@@ -71,7 +77,11 @@ export default function SettingsPage() {
     setShowThemeSelector(false);
   };
 
-  // Get icon for theme
+  const handleDepositLimitToggle = (enabled: boolean) => {
+    toggleDepositLimit(enabled);
+    setDepositLimitEnabled(enabled);
+  };
+
   const getThemeIcon = (theme: ThemeType) => {
     switch (theme) {
       case 'dark': return <Moon size={16} />;
@@ -82,7 +92,6 @@ export default function SettingsPage() {
     }
   };
 
-  // Get theme preview style
   const getThemePreviewStyle = (theme: ThemeType) => {
     const config = THEMES[theme];
     return {
@@ -124,6 +133,51 @@ export default function SettingsPage() {
           Settings
         </h1>
 
+        {/* Deposit Limit Toggle Section */}
+        <Card
+          className="p-5 border mb-6"
+          style={{ 
+            background: 'var(--theme-card-bg, #1e2329)', 
+            borderColor: 'var(--theme-card-border, #333)' 
+          }}
+        >
+          <div className="flex items-center gap-3 mb-4">
+            <Shield size={20} style={{ color: 'var(--theme-primary, #ffc107)' }} />
+            <h2 className="text-lg font-bold">Deposit Limit</h2>
+          </div>
+          
+          <p className="text-xs mb-4" style={{ color: 'var(--theme-fg-muted, #888)' }}>
+            Enable this to limit deposits to 3 per day (30-day limit style). 
+            Disable to allow unlimited deposits.
+          </p>
+
+          <div className="flex items-center justify-between p-3 rounded-lg" style={{ background: 'var(--theme-bg-secondary, #0f1419)' }}>
+            <span className="text-sm">Limit 3 deposits per day</span>
+            <button
+              onClick={() => handleDepositLimitToggle(!depositLimitEnabled)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-background`}
+              style={{
+                backgroundColor: depositLimitEnabled ? 'var(--theme-primary, #ffc107)' : '#555',
+              }}
+            >
+              <span
+                className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform`}
+                style={{
+                  transform: depositLimitEnabled ? 'translateX(22px)' : 'translateX(2px)',
+                }}
+              />
+            </button>
+          </div>
+          
+          <div className="text-[10px] mt-3 text-center" style={{ color: depositLimitEnabled ? '#00c853' : '#ff9800' }}>
+            {depositLimitEnabled ? (
+              <span>✅ Deposit limit is ENABLED. Max 3 deposits per day.</span>
+            ) : (
+              <span>⚠️ Deposit limit is DISABLED. Unlimited deposits allowed.</span>
+            )}
+          </div>
+        </Card>
+
         {/* Theme Section */}
         <Card
           className="p-5 border mb-6"
@@ -141,7 +195,6 @@ export default function SettingsPage() {
             Choose your preferred theme for the entire application
           </p>
 
-          {/* Current Theme Display */}
           <div 
             className="p-3 rounded-lg mb-4 flex items-center justify-between cursor-pointer"
             style={{ 
@@ -176,7 +229,6 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          {/* Theme Options Dropdown */}
           {showThemeSelector && (
             <div className="space-y-2 mt-2">
               {(Object.keys(THEMES) as ThemeType[]).map((theme) => (
@@ -211,8 +263,6 @@ export default function SettingsPage() {
                       <Check size={18} style={{ color: 'var(--theme-primary, #ffc107)' }} />
                     )}
                   </div>
-                  
-                  {/* Color Preview Strip */}
                   <div className="flex mt-2 gap-1">
                     <div className="h-1 flex-1 rounded" style={{ background: THEMES[theme].colors.primary }} />
                     <div className="h-1 flex-1 rounded" style={{ background: THEMES[theme].colors.accent }} />
@@ -315,13 +365,13 @@ export default function SettingsPage() {
           <ul className="text-xs space-y-2" style={{ color: 'var(--theme-fg-muted, #888)' }}>
             <li>• Game Account: Used for betting</li>
             <li>• Fund Account: Monthly allowance for transfers</li>
-            <li>• Fund account can only be edited once per month</li>
-            <li>• Withdrawals deduct from Game Account</li>
-            <li>• Profits add to Fund Account</li>
+            <li>• Fund account can be edited anytime (no 30-day limit)</li>
+            <li>• Fund additions are tracked with history</li>
+            <li>• Deposit limit can be toggled on/off in settings</li>
             <li>• Theme preferences are saved automatically</li>
           </ul>
         </Card>
       </div>
     </main>
   );
-          }
+}
