@@ -1,17 +1,15 @@
 // lib/settings.ts
 
 export interface AppSettings {
-  depositLimitEnabled: boolean; // If true, max 3 deposits per day; if false, unlimited
+  depositLimitEnabled: boolean;
 }
 
 const SETTINGS_KEY = 'app_settings';
 
-// Default settings
 const defaultSettings: AppSettings = {
-  depositLimitEnabled: true, // Default: 30-day limit ON
+  depositLimitEnabled: true,
 };
 
-// Get all settings
 export function getSettings(): AppSettings {
   if (typeof window === 'undefined') return defaultSettings;
   const stored = localStorage.getItem(SETTINGS_KEY);
@@ -23,7 +21,6 @@ export function getSettings(): AppSettings {
   }
 }
 
-// Update settings
 export function updateSettings(settings: Partial<AppSettings>): AppSettings {
   const current = getSettings();
   const updated = { ...current, ...settings };
@@ -31,12 +28,10 @@ export function updateSettings(settings: Partial<AppSettings>): AppSettings {
   return updated;
 }
 
-// Toggle deposit limit
 export function toggleDepositLimit(enabled: boolean): AppSettings {
   return updateSettings({ depositLimitEnabled: enabled });
 }
 
-// Check if deposit limit is enabled
 export function isDepositLimitEnabled(): boolean {
   return getSettings().depositLimitEnabled;
-}
+    }
