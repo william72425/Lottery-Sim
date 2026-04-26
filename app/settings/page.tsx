@@ -5,17 +5,10 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
-import { ChevronLeft, Palette, Check, Moon, Flame, Leaf, Zap, Shield, AlertTriangle } from 'lucide-react';
+import { ChevronLeft, Palette, Check, Moon, Flame, Leaf, Zap, Shield } from 'lucide-react';
 import { STORAGE_KEYS } from '@/lib/storage';
 import { THEMES, ThemeType, getCurrentTheme, setTheme } from '@/lib/theme';
-import { isDepositLimitEnabled, toggleDepositLimit, getSettings } from '@/lib/settings';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { isDepositLimitEnabled, toggleDepositLimit } from '@/lib/settings';
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -27,7 +20,6 @@ export default function SettingsPage() {
   const [showThemeSelector, setShowThemeSelector] = useState(false);
   const [depositLimitEnabled, setDepositLimitEnabled] = useState(true);
 
-  // Load current theme and deposit limit setting
   useEffect(() => {
     const savedTheme = getCurrentTheme();
     setCurrentTheme(savedTheme);
@@ -41,7 +33,6 @@ export default function SettingsPage() {
       return;
     }
 
-    // Clear all storage except settings
     Object.values(STORAGE_KEYS).forEach((key) => {
       localStorage.removeItem(key);
     });
@@ -52,7 +43,6 @@ export default function SettingsPage() {
     localStorage.removeItem('bet_notes');
     localStorage.removeItem('custom_tags');
 
-    // Reinitialize with defaults
     localStorage.setItem(STORAGE_KEYS.WALLET, '0');
     localStorage.setItem(STORAGE_KEYS.FUND, '0');
     localStorage.setItem(STORAGE_KEYS.BETS, '[]');
@@ -108,7 +98,6 @@ export default function SettingsPage() {
         color: 'var(--theme-fg, #fff)' 
       }}
     >
-      {/* Header */}
       <div
         className="flex items-center p-4 sticky top-0 z-20 border-b"
         style={{ 
@@ -126,14 +115,12 @@ export default function SettingsPage() {
         </button>
       </div>
 
-      {/* Content */}
       <div className="w-full max-w-md mx-auto px-4 pt-6 pb-20">
-        {/* Title */}
         <h1 className="text-2xl font-bold mb-6" style={{ color: 'var(--theme-primary, #ffc107)' }}>
           Settings
         </h1>
 
-        {/* Deposit Limit Toggle Section */}
+        {/* Deposit Limit Toggle */}
         <Card
           className="p-5 border mb-6"
           style={{ 
@@ -147,15 +134,14 @@ export default function SettingsPage() {
           </div>
           
           <p className="text-xs mb-4" style={{ color: 'var(--theme-fg-muted, #888)' }}>
-            Enable this to limit deposits to 3 per day (30-day limit style). 
-            Disable to allow unlimited deposits.
+            Enable to limit deposits to 3 per day. Disable for unlimited deposits.
           </p>
 
           <div className="flex items-center justify-between p-3 rounded-lg" style={{ background: 'var(--theme-bg-secondary, #0f1419)' }}>
             <span className="text-sm">Limit 3 deposits per day</span>
             <button
               onClick={() => handleDepositLimitToggle(!depositLimitEnabled)}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-background`}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors`}
               style={{
                 backgroundColor: depositLimitEnabled ? 'var(--theme-primary, #ffc107)' : '#555',
               }}
@@ -170,11 +156,7 @@ export default function SettingsPage() {
           </div>
           
           <div className="text-[10px] mt-3 text-center" style={{ color: depositLimitEnabled ? '#00c853' : '#ff9800' }}>
-            {depositLimitEnabled ? (
-              <span>✅ Deposit limit is ENABLED. Max 3 deposits per day.</span>
-            ) : (
-              <span>⚠️ Deposit limit is DISABLED. Unlimited deposits allowed.</span>
-            )}
+            {depositLimitEnabled ? '✅ Limit ENABLED - Max 3 deposits per day' : '⚠️ Limit DISABLED - Unlimited deposits'}
           </div>
         </Card>
 
@@ -240,7 +222,6 @@ export default function SettingsPage() {
                   style={{
                     background: 'var(--theme-bg-secondary, #0f1419)',
                     border: `1px solid var(--theme-border, #333)`,
-                    ringColor: currentTheme === theme ? 'var(--theme-primary, #ffc107)' : 'transparent',
                   }}
                   onClick={() => handleThemeChange(theme)}
                 >
@@ -282,7 +263,7 @@ export default function SettingsPage() {
         >
           <h2 className="text-lg font-bold mb-4">Reset All Data</h2>
           <p className="text-xs mb-4" style={{ color: 'var(--theme-fg-muted, #888)' }}>
-            Enter the reset password to clear all data and start over
+            Enter the reset password (2026) to clear all data and start over
           </p>
 
           {!showResetForm ? (
@@ -315,11 +296,9 @@ export default function SettingsPage() {
                   className="p-3 rounded-lg text-sm"
                   style={{
                     background: resetMessage.includes('successfully')
-                      ? 'var(--theme-success, #00c853)30'
-                      : 'var(--theme-danger, #ff3d00)30',
-                    color: resetMessage.includes('successfully')
-                      ? 'var(--theme-success, #00c853)'
-                      : 'var(--theme-danger, #ff3d00)',
+                      ? 'rgba(0, 200, 83, 0.3)'
+                      : 'rgba(255, 61, 0, 0.3)',
+                    color: resetMessage.includes('successfully') ? '#00c853' : '#ff3d00',
                   }}
                 >
                   {resetMessage}
@@ -334,20 +313,14 @@ export default function SettingsPage() {
                     setResetMessage('');
                   }}
                   className="flex-1"
-                  style={{
-                    background: '#333',
-                    color: '#fff',
-                  }}
+                  style={{ background: '#333', color: '#fff' }}
                 >
                   Cancel
                 </Button>
                 <Button
                   onClick={handleReset}
                   className="flex-1"
-                  style={{
-                    background: 'var(--theme-danger, #ff3d00)',
-                    color: '#fff',
-                  }}
+                  style={{ background: 'var(--theme-danger, #ff3d00)', color: '#fff' }}
                 >
                   Confirm Reset
                 </Button>
@@ -364,14 +337,13 @@ export default function SettingsPage() {
           <h3 className="text-sm font-bold mb-3">Information</h3>
           <ul className="text-xs space-y-2" style={{ color: 'var(--theme-fg-muted, #888)' }}>
             <li>• Game Account: Used for betting</li>
-            <li>• Fund Account: Monthly allowance for transfers</li>
-            <li>• Fund account can be edited anytime (no 30-day limit)</li>
+            <li>• Fund Account: Can be edited anytime (no 30-day limit)</li>
             <li>• Fund additions are tracked with history</li>
-            <li>• Deposit limit can be toggled on/off in settings</li>
+            <li>• Deposit limit can be toggled on/off above</li>
             <li>• Theme preferences are saved automatically</li>
           </ul>
         </Card>
       </div>
     </main>
   );
-}
+                  }
