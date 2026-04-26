@@ -16,6 +16,7 @@ import {
 } from '@/lib/storage';
 import { validateDepositAmount } from '@/lib/trx-utils';
 import { formatDate, formatTime, groupByDate } from '@/lib/sound';
+import { isDepositLimitEnabled } from '@/lib/settings';
 
 export default function DepositsPage() {
   const router = useRouter();
@@ -27,12 +28,14 @@ export default function DepositsPage() {
   const [remainingDeposits, setRemainingDeposits] = useState(3);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [limitEnabled, setLimitEnabled] = useState(true);
 
   useEffect(() => {
     setWallet(getWallet());
     setFund(getFund());
     setDeposits(getDeposits());
     setRemainingDeposits(getRemainingDepositsToday());
+    setLimitEnabled(isDepositLimitEnabled());
   }, []);
 
   const handleDeposit = () => {
@@ -61,8 +64,8 @@ export default function DepositsPage() {
       return;
     }
 
-    if (remainingDeposits <= 0) {
-      setError('Max 3 deposits per day');
+    if (limitEnabled && remainingDeposits <= 0) {
+      setError('Max 3 deposits per day (limit enabled in settings)');
       return;
     }
 
@@ -167,12 +170,16 @@ export default function DepositsPage() {
           <div
             className="p-3 rounded-lg mb-4 text-sm"
             style={{
-              background: 'rgba(255, 193, 7, 0.1)',
-              borderLeft: '3px solid #ffc107',
-              color: '#ffc107',
+              background: limitEnabled ? 'rgba(255, 193, 7, 0.1)' : 'rgba(0, 200, 83, 0.1)',
+              borderLeft: `3px solid ${limitEnabled ? '#ffc107' : '#00c853'}`,
+              color: limitEnabled ? '#ffc107' : '#00c853',
             }}
           >
-            Remaining deposits today: {remainingDeposits}/3
+            {limitEnabled ? (
+              `Remaining deposits today: ${remainingDeposits}/3 (limit enabled)`
+            ) : (
+              `Unlimited deposits (limit disabled in settings)`
+            )}
           </div>
 
           <Input
@@ -203,7 +210,7 @@ export default function DepositsPage() {
 
           <Button
             onClick={handleDeposit}
-            disabled={!amount || remainingDeposits <= 0 || fund <= 0}
+            disabled={!amount || (limitEnabled && remainingDeposits <= 0) || fund <= 0}
             className="w-full py-6 font-bold text-black disabled:opacity-50"
             style={{
               background: '#00c853',
