@@ -10,14 +10,18 @@ import {
   addWithdrawal,
   getWithdrawals,
   getWallet,
-  getFund,
   Withdrawal,
 } from '@/lib/storage';
+import {
+  getTotalMonthlyFund,
+  getCurrentMonthYear,
+} from '@/lib/monthly-fund';
 import { validateWithdrawalAmount } from '@/lib/trx-utils';
 import { formatDate, formatTime, groupByDate } from '@/lib/sound';
 
 export default function WithdrawalsPage() {
   const router = useRouter();
+  const { year, month } = getCurrentMonthYear();
   const [wallet, setWallet] = useState(0);
   const [fund, setFund] = useState(0);
   const [amount, setAmount] = useState('');
@@ -28,9 +32,9 @@ export default function WithdrawalsPage() {
 
   useEffect(() => {
     setWallet(getWallet());
-    setFund(getFund());
+    setFund(getTotalMonthlyFund(year, month));
     setWithdrawals(getWithdrawals());
-  }, []);
+  }, [year, month]);
 
   const handleWithdrawal = () => {
     setError('');
@@ -57,7 +61,7 @@ export default function WithdrawalsPage() {
 
     if (withdrawal) {
       setWallet(getWallet());
-      setFund(getFund());
+      setFund(getTotalMonthlyFund(year, month));
       setWithdrawals(getWithdrawals());
       setAmount('');
       setShowConfirm(false);

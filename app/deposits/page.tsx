@@ -11,15 +11,20 @@ import {
   getDeposits,
   getRemainingDepositsToday,
   getWallet,
-  getFund,
   Deposit,
 } from '@/lib/storage';
+import {
+  getTotalMonthlyFund,
+  getCurrentMonthYear,
+  addToMonthlyFund,
+} from '@/lib/monthly-fund';
 import { validateDepositAmount } from '@/lib/trx-utils';
 import { formatDate, formatTime, groupByDate } from '@/lib/sound';
 import { isDepositLimitEnabled } from '@/lib/settings';
 
 export default function DepositsPage() {
   const router = useRouter();
+  const { year, month } = getCurrentMonthYear();
   const [wallet, setWallet] = useState(0);
   const [fund, setFund] = useState(0);
   const [amount, setAmount] = useState('');
@@ -32,11 +37,11 @@ export default function DepositsPage() {
 
   useEffect(() => {
     setWallet(getWallet());
-    setFund(getFund());
+    setFund(getTotalMonthlyFund(year, month));
     setDeposits(getDeposits());
     setRemainingDeposits(getRemainingDepositsToday());
     setLimitEnabled(isDepositLimitEnabled());
-  }, []);
+  }, [year, month]);
 
   const handleDeposit = () => {
     setError('');
@@ -71,7 +76,11 @@ export default function DepositsPage() {
 
     const newDeposit = addDeposit(depositAmount, note);
     if (newDeposit) {
+      // Update monthly fund after deposit
+      addToMonthlyFund(year, month, depositAmount, `Deposit: ${note || 'Game deposit'}`);
+      
       setWallet(getWallet());
+      setFund(getTotalMonthlyFund(year, month));
       setDeposits(getDeposits());
       setRemainingDeposits(getRemainingDepositsToday());
       setAmount('');
