@@ -123,6 +123,42 @@ export function addToMonthlyFund(year: number, month: number, amount: number, no
   return funds[index];
 }
 
+// Deduct from monthly fund (used for deposits)
+export function deductFromMonthlyFund(year: number, month: number, amount: number, note: string): MonthlyFund | null {
+  const funds = getMonthlyFunds();
+  const index = funds.findIndex(f => f.year === year && f.month === month);
+  
+  if (index === -1) {
+    return null;
+  }
+  
+  const total = getTotalMonthlyFund(year, month);
+  if (total < amount) return null;
+  
+  const now = new Date().toISOString();
+  const deduction: FundAddition = {
+    id: `fund_deduct_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+    amount: -amount,
+    note: note.trim() || 'Fund deduction',
+    createdAt: now,
+  };
+  
+  const historyEntry: FundHistoryEntry = {
+    id: `hist_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+    type: 'edit',
+    newAmount: total - amount,
+    note: note.trim() || 'Fund deducted',
+    createdAt: now,
+  };
+  
+  funds[index].additions.push(deduction);
+  funds[index].history.push(historyEntry);
+  funds[index].updatedAt = now;
+  
+  localStorage.setItem(MONTHLY_FUND_KEY, JSON.stringify(funds));
+  return funds[index];
+}
+
 // Get total fund for a month (initial + all additions)
 export function getTotalMonthlyFund(year: number, month: number): number {
   const fund = getMonthlyFund(year, month);

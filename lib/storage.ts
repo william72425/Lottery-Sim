@@ -149,7 +149,14 @@ function isDepositLimitActive(): boolean {
 
 export function addDeposit(amount: number, note: string = ''): Deposit | null {
   if (typeof window === 'undefined') return null;
-  const fund = getFund();
+  
+  // Import monthly fund functions dynamically to avoid circular dependencies if any
+  // or use the existing ones if they are available.
+  // For this fix, we assume we can use them directly as they are part of the same project.
+  const { getCurrentMonthYear, getTotalMonthlyFund, deductFromMonthlyFund } = require('./monthly-fund');
+  const { year, month } = getCurrentMonthYear();
+  const fund = getTotalMonthlyFund(year, month);
+  
   if (fund < amount) return null;
 
   const today = new Date().toISOString().split('T')[0];
@@ -176,7 +183,8 @@ export function addDeposit(amount: number, note: string = ''): Deposit | null {
   localStorage.setItem(STORAGE_KEYS.DEPOSITS, JSON.stringify(deposits));
   localStorage.setItem(STORAGE_KEYS.DEPOSIT_COUNT_TODAY, (countToday + 1).toString());
 
-  setFund(fund - amount);
+  // Deduct from monthly fund
+  deductFromMonthlyFund(year, month, amount, `Deposit to game account: ${note}`);
   addToWallet(amount);
   return newDeposit;
 }
@@ -207,8 +215,14 @@ export function getWithdrawals(): Withdrawal[] {
 export function addWithdrawal(amount: number): Withdrawal | null {
   const wallet = getWallet();
   if (wallet < amount) return null;
+  
+  const { getCurrentMonthYear, addToMonthlyFund } = require('./monthly-fund');
+  const { year, month } = getCurrentMonthYear();
+  
   deductFromWallet(amount);
-  setFund(getFund() + amount);
+  // Add back to monthly fund
+  addToMonthlyFund(year, month, amount, `Withdrawal from game account`);
+  
   const withdrawals = getWithdrawals();
   const newWithdrawal: Withdrawal = {
     id: `wd_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,

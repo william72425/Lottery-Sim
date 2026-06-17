@@ -76,9 +76,6 @@ export default function DepositsPage() {
 
     const newDeposit = addDeposit(depositAmount, note);
     if (newDeposit) {
-      // Update monthly fund after deposit
-      addToMonthlyFund(year, month, depositAmount, `Deposit: ${note || 'Game deposit'}`);
-      
       setWallet(getWallet());
       setFund(getTotalMonthlyFund(year, month));
       setDeposits(getDeposits());
