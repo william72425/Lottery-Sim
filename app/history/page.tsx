@@ -319,38 +319,10 @@ export default function HistoryPage() {
     const winRate = totalMatches > 0 ? (winMatches / totalMatches) * 100 : 0;
     const lostRate = totalMatches > 0 ? (lostMatches / totalMatches) * 100 : 0;
     
-    // Calculate weighted profit percentage based on monthly funds
-    let totalWeightedProfit = 0;
-    let totalFundWeight = 0;
-    for (const [_, data] of monthlyProfitMap.entries()) {
-      if (data.fund > 0) {
-        totalWeightedProfit += data.profit;
-        totalFundWeight += data.fund;
-      }
-    }
+    // Calculate profit percentage based on total bet amount (capital/investment)
+    // Formula: (Net Profit / Total Bet Amount) * 100
+    const profitPercentage = totalBetAmount > 0 ? (netProfit / totalBetAmount) * 100 : 0;
     
-    const profitPercentage = totalFundWeight > 0 ? (totalWeightedProfit / totalFundWeight) * 100 : 0;
-    
-    // Get reference month info for display
-    let referenceMonthName = '';
-    let referenceYear = 0;
-    let referenceMonthNum = 0;
-    let referenceFund = 0;
-    
-    if (filteredBets.length > 0) {
-      const firstBetDate = new Date(filteredBets[0].createdAt);
-      referenceYear = firstBetDate.getFullYear();
-      referenceMonthNum = firstBetDate.getMonth() + 1;
-      referenceMonthName = firstBetDate.toLocaleString('default', { month: 'long' });
-      referenceFund = getTotalMonthlyFund(referenceYear, referenceMonthNum);
-    } else {
-      const now = new Date();
-      referenceYear = now.getFullYear();
-      referenceMonthNum = now.getMonth() + 1;
-      referenceMonthName = now.toLocaleString('default', { month: 'long' });
-      referenceFund = getCurrentMonthTotalFund();
-    }
-
     return {
       totalMatches,
       totalBetAmount,
@@ -362,10 +334,6 @@ export default function HistoryPage() {
       winRate,
       lostRate,
       profitPercentage,
-      referenceFund,
-      referenceMonthName,
-      referenceYear,
-      referenceMonthNum,
     };
   }, [filteredBets, fundRefreshKey]);
 
@@ -665,16 +633,11 @@ export default function HistoryPage() {
                 {stats.netProfit >= 0 ? '+' : ''}{stats.netProfit.toLocaleString()} MMK
               </div>
               <div className="text-xs text-gray-400 mt-1">
-                vs Fund ({stats.referenceFund.toLocaleString()} MMK): 
+                Profit % vs Investment ({stats.totalBetAmount.toLocaleString()} MMK): 
                 <span style={{ color: stats.profitPercentage >= 0 ? '#00c853' : '#ff3d00' }}>
                   {' '}{stats.profitPercentage >= 0 ? '+' : ''}{stats.profitPercentage.toFixed(2)}%
                 </span>
               </div>
-              {stats.referenceMonthName && (
-                <div className="text-[10px] text-gray-500 mt-1">
-                  Based on {stats.referenceMonthName} {stats.referenceYear} fund
-                </div>
-              )}
             </Card>
 
             {/* Row 1: Basic Stats */}
