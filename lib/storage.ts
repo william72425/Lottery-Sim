@@ -220,8 +220,8 @@ export function addWithdrawal(amount: number): Withdrawal | null {
   const { year, month } = getCurrentMonthYear();
   
   deductFromWallet(amount);
-  // Add back to monthly fund
-  addToMonthlyFund(year, month, amount, `Withdrawal from game account`);
+  // Add back to monthly fund (This is a TRANSFER, not capital)
+  addToMonthlyFund(year, month, amount, `Withdrawal from game account`, false);
   
   const withdrawals = getWithdrawals();
   const newWithdrawal: Withdrawal = {

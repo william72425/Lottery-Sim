@@ -5,11 +5,12 @@ export interface FundAddition {
   amount: number;
   note: string;
   createdAt: string;
+  isCapital?: boolean; // True for initial and manual extra funds, false for deposits/withdrawals
 }
 
 export interface FundHistoryEntry {
   id: string;
-  type: 'set' | 'add' | 'edit';
+  type: 'set' | 'add' | 'edit' | 'transfer';
   previousAmount?: number;
   newAmount: number;
   note: string;
@@ -90,8 +91,8 @@ export function setInitialMonthlyFund(year: number, month: number, amount: numbe
   }
 }
 
-// Add additional fund to a month
-export function addToMonthlyFund(year: number, month: number, amount: number, note: string): MonthlyFund | null {
+// Add additional fund to a month (This is CAPITAL)
+export function addToMonthlyFund(year: number, month: number, amount: number, note: string, isCapital: boolean = true): MonthlyFund | null {
   const funds = getMonthlyFunds();
   const index = funds.findIndex(f => f.year === year && f.month === month);
   
@@ -105,13 +106,14 @@ export function addToMonthlyFund(year: number, month: number, amount: number, no
     amount,
     note: note.trim() || 'Additional fund',
     createdAt: now,
+    isCapital,
   };
   
   const historyEntry: FundHistoryEntry = {
     id: `hist_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
-    type: 'add',
+    type: isCapital ? 'add' : 'transfer',
     newAmount: amount,
-    note: note.trim() || 'Additional fund added',
+    note: note.trim() || (isCapital ? 'Additional fund added' : 'Transfer added'),
     createdAt: now,
   };
   
@@ -123,7 +125,7 @@ export function addToMonthlyFund(year: number, month: number, amount: number, no
   return funds[index];
 }
 
-// Deduct from monthly fund (used for deposits)
+// Deduct from monthly fund (used for deposits) - This is TRANSFER, not Capital deduction
 export function deductFromMonthlyFund(year: number, month: number, amount: number, note: string): MonthlyFund | null {
   const funds = getMonthlyFunds();
   const index = funds.findIndex(f => f.year === year && f.month === month);
@@ -141,13 +143,14 @@ export function deductFromMonthlyFund(year: number, month: number, amount: numbe
     amount: -amount,
     note: note.trim() || 'Fund deduction',
     createdAt: now,
+    isCapital: false, // Transfers don't affect capital
   };
   
   const historyEntry: FundHistoryEntry = {
     id: `hist_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
-    type: 'edit',
+    type: 'transfer',
     newAmount: total - amount,
-    note: note.trim() || 'Fund deducted',
+    note: note.trim() || 'Fund transferred out',
     createdAt: now,
   };
   
@@ -159,13 +162,25 @@ export function deductFromMonthlyFund(year: number, month: number, amount: numbe
   return funds[index];
 }
 
-// Get total fund for a month (initial + all additions)
+// Get total fund for a month (Current Balance: initial + all additions/deductions)
 export function getTotalMonthlyFund(year: number, month: number): number {
   const fund = getMonthlyFund(year, month);
   if (!fund) return 0;
   
   const additionsTotal = fund.additions.reduce((sum, add) => sum + add.amount, 0);
   return fund.initialFund + additionsTotal;
+}
+
+// Get total CAPITAL for a month (initial + only manual additions)
+export function getTotalCapitalFund(year: number, month: number): number {
+  const fund = getMonthlyFund(year, month);
+  if (!fund) return 0;
+  
+  const capitalAdditionsTotal = fund.additions
+    .filter(add => add.isCapital !== false) // Default to true if not specified
+    .reduce((sum, add) => sum + add.amount, 0);
+    
+  return fund.initialFund + capitalAdditionsTotal;
 }
 
 // Get total fund for a specific date (uses the month of that date)

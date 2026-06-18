@@ -30,6 +30,7 @@ import {
 } from '@/lib/bet-notes';
 import { 
   getTotalMonthlyFund, 
+  getTotalCapitalFund,
   getCurrentMonthTotalFund,
   getMonthlyFund
 } from '@/lib/monthly-fund';
@@ -277,9 +278,6 @@ export default function HistoryPage() {
     let winMatches = 0;
     let lostMatches = 0;
 
-    // Track fund per month for weighted calculation
-    const monthlyProfitMap: Map<string, { profit: number; fund: number }> = new Map();
-
     filteredBets.forEach(bet => {
       if (bet.status === 'win') {
         const multiplier = getBetMultiplier(bet.val);
@@ -287,41 +285,29 @@ export default function HistoryPage() {
         const profit = winAmount - bet.amt;
         totalWinAmount += profit;
         winMatches++;
-        
-        // Track monthly profit
-        const betDate = new Date(bet.createdAt);
-        const monthKey = `${betDate.getFullYear()}-${betDate.getMonth() + 1}`;
-        const monthlyFund = getTotalMonthlyFund(betDate.getFullYear(), betDate.getMonth() + 1);
-        const existing = monthlyProfitMap.get(monthKey);
-        if (existing) {
-          monthlyProfitMap.set(monthKey, { profit: existing.profit + profit, fund: existing.fund });
-        } else {
-          monthlyProfitMap.set(monthKey, { profit, fund: monthlyFund });
-        }
       } else if (bet.status === 'lost') {
         totalLostAmount += bet.amt;
         lostMatches++;
-        
-        // Track monthly loss
-        const betDate = new Date(bet.createdAt);
-        const monthKey = `${betDate.getFullYear()}-${betDate.getMonth() + 1}`;
-        const monthlyFund = getTotalMonthlyFund(betDate.getFullYear(), betDate.getMonth() + 1);
-        const existing = monthlyProfitMap.get(monthKey);
-        if (existing) {
-          monthlyProfitMap.set(monthKey, { profit: existing.profit - bet.amt, fund: existing.fund });
-        } else {
-          monthlyProfitMap.set(monthKey, { profit: -bet.amt, fund: monthlyFund });
-        }
       }
     });
 
-    const netProfit = totalWinAmount - totalLostAmount;
     const winRate = totalMatches > 0 ? (winMatches / totalMatches) * 100 : 0;
     const lostRate = totalMatches > 0 ? (lostMatches / totalMatches) * 100 : 0;
     
-    // Calculate profit percentage based on total bet amount (capital/investment)
-    // Formula: (Net Profit / Total Bet Amount) * 100
-    const profitPercentage = totalBetAmount > 0 ? (netProfit / totalBetAmount) * 100 : 0;
+    // P&L Calculation based on Fund Balance vs Capital
+    // 1. Get current month fund info
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth() + 1;
+    
+    const currentBalance = getTotalMonthlyFund(year, month);
+    const currentCapital = getTotalCapitalFund(year, month);
+    
+    // Net Profit is the difference between current balance and what we put in (capital)
+    const netProfit = currentBalance - currentCapital;
+    
+    // P&L % is (Net Profit / Capital) * 100
+    const profitPercentage = currentCapital > 0 ? (netProfit / currentCapital) * 100 : 0;
     
     return {
       totalMatches,
@@ -334,6 +320,8 @@ export default function HistoryPage() {
       winRate,
       lostRate,
       profitPercentage,
+      currentBalance,
+      currentCapital
     };
   }, [filteredBets, fundRefreshKey]);
 
@@ -633,10 +621,13 @@ export default function HistoryPage() {
                 {stats.netProfit >= 0 ? '+' : ''}{stats.netProfit.toLocaleString()} MMK
               </div>
               <div className="text-xs text-gray-400 mt-1">
-                Profit % vs Investment ({stats.totalBetAmount.toLocaleString()} MMK): 
+                P&L vs Capital ({stats.currentCapital.toLocaleString()} MMK): 
                 <span style={{ color: stats.profitPercentage >= 0 ? '#00c853' : '#ff3d00' }}>
                   {' '}{stats.profitPercentage >= 0 ? '+' : ''}{stats.profitPercentage.toFixed(2)}%
                 </span>
+              </div>
+              <div className="text-[10px] text-gray-500 mt-1">
+                Current Balance: {stats.currentBalance.toLocaleString()} MMK
               </div>
             </Card>
 
